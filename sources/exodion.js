@@ -37,6 +37,9 @@ function createInfoElement(nbTrackers, appID, report) {
   countSpan.textContent = nbTrackers + (nbTrackers === 1 ? ' tracker found' : ' trackers found');
   counterDiv.appendChild(countSpan);
 
+  var actions = document.createElement('div');
+  actions.className = 'exodion-actions';
+
   var poweredBySpan = document.createElement('a');
   poweredBySpan.className = 'exodion-powered';
   poweredBySpan.textContent = 'Open Exodus Privacy report';
@@ -44,7 +47,10 @@ function createInfoElement(nbTrackers, appID, report) {
     ? 'https://reports.exodus-privacy.eu.org/reports/' + report.id + '/'
     : 'https://reports.exodus-privacy.eu.org/reports/search/' + appID;
   poweredBySpan.target = '_blank';
-  counterDiv.appendChild(poweredBySpan);
+  actions.appendChild(poweredBySpan);
+
+  actions.appendChild(createRefreshButton(appID));
+  counterDiv.appendChild(actions);
 
   return counterDiv;
 }
@@ -72,6 +78,21 @@ function createQuickInfoElement(nbTrackers, appID, reportID) {
   linkWrap.appendChild(countSpan);
 
   return counterDiv;
+}
+
+function createRefreshButton(appID) {
+  var button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'exodion-refresh';
+  button.setAttribute('data-exodion-refresh', appID);
+  button.setAttribute('aria-label', 'Refresh tracker report');
+  button.title = 'Refresh tracker report';
+  button.textContent = '↻';
+  if (window._exodion.inFlight[appID]) {
+    button.disabled = true;
+    button.classList.add('is-loading');
+  }
+  return button;
 }
 
 function getCacheStorageKey() {
@@ -140,6 +161,11 @@ function putCachedReport(appID, name, report) {
   persistReportCache();
 }
 
+function removeCachedReport(appID) {
+  delete window._exodion.reportCache[appID];
+  persistReportCache();
+}
+
 function renderQuickBadge(meta, id, name, report) {
   var existing = document.getElementById('exodion-' + id);
   if (existing) {
@@ -191,30 +217,42 @@ function createMissingElement(appID) {
   countSpan.textContent = 'Tracker count unavailable';
   counterDiv.appendChild(countSpan);
 
+  var actions = document.createElement('div');
+  actions.className = 'exodion-actions';
+
   var poweredBySpan = document.createElement('a');
   poweredBySpan.className = 'exodion-powered';
   poweredBySpan.textContent = 'Request an Exodus Privacy analysis';
   poweredBySpan.href = 'https://reports.exodus-privacy.eu.org/analysis/submit/#' + appID;
   poweredBySpan.target = '_blank';
-  counterDiv.appendChild(poweredBySpan);
+  actions.appendChild(poweredBySpan);
+
+  actions.appendChild(createRefreshButton(appID));
+  counterDiv.appendChild(actions);
 
   return counterDiv;
 }
 
-function createLoadingElement(appID) {
+function createLoadingElement(appID, isRefreshing) {
   var counterDiv = document.createElement('div');
   counterDiv.setAttribute('data-xodify', appID);
   counterDiv.className = 'exodion-trackerInfoBoxLoading';
 
   var countSpan = document.createElement('span');
   countSpan.className = 'exodion-count';
-  countSpan.textContent = 'Fetching report...';
+  countSpan.textContent = isRefreshing ? 'Refreshing report...' : 'Fetching report...';
   counterDiv.appendChild(countSpan);
+
+  var actions = document.createElement('div');
+  actions.className = 'exodion-actions';
 
   var statusSpan = document.createElement('span');
   statusSpan.className = 'exodion-powered';
   statusSpan.textContent = 'Checking Exodus Privacy';
-  counterDiv.appendChild(statusSpan);
+  actions.appendChild(statusSpan);
+
+  actions.appendChild(createRefreshButton(appID));
+  counterDiv.appendChild(actions);
 
   return counterDiv;
 }
@@ -229,10 +267,16 @@ function createFetchErrorElement(appID) {
   countSpan.textContent = 'Report fetch failed';
   counterDiv.appendChild(countSpan);
 
+  var actions = document.createElement('div');
+  actions.className = 'exodion-actions';
+
   var retrySpan = document.createElement('span');
   retrySpan.className = 'exodion-powered';
-  retrySpan.textContent = 'Retrying automatically';
-  counterDiv.appendChild(retrySpan);
+  retrySpan.textContent = 'Retry automatically or refresh now';
+  actions.appendChild(retrySpan);
+
+  actions.appendChild(createRefreshButton(appID));
+  counterDiv.appendChild(actions);
 
   return counterDiv;
 }
@@ -442,7 +486,7 @@ function replaceMainExodionBox(appID, elem) {
   injectHtmlInAppContainer(elem);
 }
 
-function exodion() {
+function exodion(forceRefresh) {
   xlog('exodion:start', { url: window.location.href });
   if (window.location.href.indexOf('play.google.com/store/apps/details?') === -1) {
     return;
@@ -454,7 +498,7 @@ function exodion() {
     return;
   }
 
-  var cached = getCachedReport(appID);
+  var cached = forceRefresh ? null : getCachedReport(appID);
   if (cached) {
     var cachedNb = cached.report ? cached.report.trackers.length : -1;
     browser.runtime.sendMessage({ appId: appID, nbTrackers: cachedNb, type: 't1' });
@@ -489,14 +533,20 @@ function exodion() {
   }
 
   if (
+    !forceRefresh &&
     window._exodion.fetchedAt[appID] &&
     Date.now() - window._exodion.fetchedAt[appID] < window._exodion.fetchTtlMs
   ) {
     return;
   }
 
+  if (forceRefresh) {
+    removeCachedReport(appID);
+    delete window._exodion.fetchedAt[appID];
+  }
+
   window._exodion.inFlight[appID] = true;
-  replaceMainExodionBox(appID, createLoadingElement(appID));
+  replaceMainExodionBox(appID, createLoadingElement(appID, !!forceRefresh));
   $ep.fetchLatestReportFor(
     appID,
     function(id, name, report) {
@@ -613,4 +663,20 @@ browser.runtime.onMessage.addListener(function(message) {
       resolve(metaDatas);
     });
   }
+});
+
+document.addEventListener('click', function(event) {
+  var refreshButton = event.target.closest('[data-exodion-refresh]');
+  if (!refreshButton) {
+    return;
+  }
+
+  event.preventDefault();
+
+  var appID = refreshButton.getAttribute('data-exodion-refresh');
+  if (!appID || appID !== getParameterByName('id')) {
+    return;
+  }
+
+  exodion(true);
 });

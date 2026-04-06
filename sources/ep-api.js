@@ -3,6 +3,11 @@ const DEBUG = false;
 const authToken = "@@API_TOKEN";
 
 $ep.debug = DEBUG;
+$ep.knownCacheTtlMs = 7 * 24 * 60 * 60 * 1000;
+$ep.unknownCacheTtlMs = 6 * 60 * 60 * 1000;
+$ep.reportCache = {};
+$ep.cacheLoaded = false;
+$ep.cacheLoadPromise = null;
 
 $ep.log = function() {
   if (!$ep.debug) {
@@ -76,6 +81,72 @@ $ep.fetchJson = function(url, success, error) {
         error(err);
       }
     });
+};
+
+$ep.getCacheStorageKey = function() {
+  return 'exodionReportCacheV1';
+};
+
+$ep.getCacheTTL = function(report) {
+  return report ? $ep.knownCacheTtlMs : $ep.unknownCacheTtlMs;
+};
+
+$ep.loadReportCache = function() {
+  if ($ep.cacheLoaded) {
+    return Promise.resolve();
+  }
+
+  if ($ep.cacheLoadPromise) {
+    return $ep.cacheLoadPromise;
+  }
+
+  $ep.cacheLoadPromise = browser.storage.local
+    .get($ep.getCacheStorageKey())
+    .then(function(data) {
+      var cache = data[$ep.getCacheStorageKey()];
+      $ep.reportCache = cache && typeof cache === 'object' ? cache : {};
+      $ep.cacheLoaded = true;
+    })
+    .catch(function(err) {
+      $ep.error('cache:load-failed', { error: '' + err });
+      $ep.reportCache = {};
+      $ep.cacheLoaded = true;
+    });
+
+  return $ep.cacheLoadPromise;
+};
+
+$ep.persistReportCache = function() {
+  var payload = {};
+  payload[$ep.getCacheStorageKey()] = $ep.reportCache;
+  return browser.storage.local.set(payload).catch(function(err) {
+    $ep.error('cache:save-failed', { error: '' + err });
+  });
+};
+
+$ep.getCachedReport = function(appID) {
+  var entry = $ep.reportCache[appID];
+  if (!entry) {
+    return null;
+  }
+
+  if (!entry.expiresAt || Date.now() > entry.expiresAt) {
+    delete $ep.reportCache[appID];
+    $ep.persistReportCache();
+    return null;
+  }
+
+  return entry;
+};
+
+$ep.putCachedReport = function(appID, name, report) {
+  $ep.reportCache[appID] = {
+    appID: appID,
+    name: name || null,
+    report: report || null,
+    expiresAt: Date.now() + $ep.getCacheTTL(report)
+  };
+  $ep.persistReportCache();
 };
 
 $ep.fetchLatestReportFor = function(appID, success, error, meta) {

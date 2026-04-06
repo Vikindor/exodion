@@ -8,7 +8,6 @@
   gap: 10px;
   box-sizing: border-box;
   min-height: 44px;
-  max-width: min(100%, 420px);
   margin: 0 0 0 12px;
   padding: 10px 14px 10px 42px;
   border: 1px solid #dadce0;
@@ -71,7 +70,7 @@
 .exodion-trackerInfoBoxClean .exodion-count,
 .exodion-trackerInfoBoxClean.missing .exodion-count,
 .exodion-trackerInfoBoxLoading .exodion-count {
-  white-space: normal;
+  white-space: nowrap;
 }
 
 .exodion-trackerInfoBox a,
@@ -92,6 +91,50 @@
 
 .exodion-trackerInfoBoxLoading .exodion-powered {
   color: #5f6368;
+}
+
+.exodion-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.exodion-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border: 0;
+  background: transparent;
+  color: #0b57d0;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 0;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.exodion-refresh:not(:disabled):hover {
+  color: #174ea6;
+}
+
+.exodion-refresh:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.exodion-refresh.is-loading {
+  animation: exodion-refresh-spin 0.85s linear infinite;
 }
 
 .exodion-quickbox {
@@ -154,4 +197,14 @@
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@keyframes exodion-refresh-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }

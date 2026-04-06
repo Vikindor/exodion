@@ -1,3 +1,12 @@
+function setPopupVersion() {
+  var versionEl = document.getElementById('popupVersion');
+  if (!versionEl) {
+    return;
+  }
+
+  versionEl.textContent = 'v' + browser.runtime.getManifest().version;
+}
+
 function getParameterByName(query, name) {
   var match = new RegExp('[?&]' + name + '=([^&]*)').exec(query);
   return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
@@ -14,75 +23,126 @@ function removeLoader() {
   }
 }
 
-getActiveWindowTabs().then(function(tabs) {
+function renderEmptyState(title, text) {
+  var container = document.getElementById('currentInfo');
+  container.innerHTML = '';
+
+  var info = document.createElement('p');
+  info.className = 'trackerListTop';
+  info.innerHTML = '<strong>' + title + '</strong><br>' + text;
+  container.appendChild(info);
+}
+
+function renderAppReport(appId, id, name, lastReport, trackers) {
+  var zDiv = document.getElementById('currentInfo');
+  zDiv.innerHTML = '';
+
+  var infoP = document.createElement('p');
+  var titleSpan = document.createElement('span');
+  titleSpan.textContent = name || appId;
+  titleSpan.className = 'appName';
+  infoP.appendChild(titleSpan);
+
+  var versionSpan = document.createElement('span');
+  versionSpan.textContent = 'v' + lastReport.version;
+  versionSpan.className = 'appVersion';
+  infoP.appendChild(versionSpan);
+  zDiv.appendChild(infoP);
+
+  var trackerHead = document.createElement('p');
+  trackerHead.className = 'trackerListTop';
+  if (lastReport.trackers.length === 0) {
+    trackerHead.textContent = 'The Exodus Privacy analysis did not found the code signature of any known trackers in this application.';
+  } else if (lastReport.trackers.length === 1) {
+    trackerHead.textContent = 'The Exodus Privacy analysis did found code signature of 1 tracker in this application.';
+  } else {
+    trackerHead.textContent = 'The Exodus Privacy analysis did found code signature of ' + lastReport.trackers.length + ' trackers in this application.';
+  }
+  zDiv.appendChild(trackerHead);
+
+  var ul = document.createElement('ul');
+  ul.className = 'trackerList';
+  for (var i = 0; i < lastReport.trackers.length; i++) {
+    var tracker = lastReport.trackers[i];
+    try {
+      ul.appendChild(
+        domCreateTrackerLi(
+          trackers['' + tracker].name,
+          'https://reports.exodus-privacy.eu.org/trackers/' + tracker + '/'
+        )
+      );
+    } catch (e) {
+      var li = document.createElement('li');
+      li.textContent = trackers['' + tracker].name;
+      ul.appendChild(li);
+    }
+  }
+  zDiv.appendChild(ul);
+
+  var moreInfoA = document.createElement('a');
+  moreInfoA.target = '_blank';
+  moreInfoA.href = lastReport.id
+    ? 'https://reports.exodus-privacy.eu.org/reports/' + lastReport.id + '/'
+    : 'https://reports.exodus-privacy.eu.org/reports/search/' + id;
+  moreInfoA.textContent = 'Get the full report on Exodus Privacy';
+  zDiv.appendChild(moreInfoA);
+  zDiv.appendChild(document.createElement('hr'));
+}
+
+function showAppReport(appId, cachedEntry) {
+  var onReportReady = function(id, name, lastReport) {
+    if (typeof name === 'undefined' || !lastReport) {
+      removeLoader();
+      renderEmptyState('No report yet', 'Exodus Privacy does not currently have a tracker report for this app.');
+      return;
+    }
+
+    $ep.fetchTrackerList(function(trackers) {
+      removeLoader();
+      renderAppReport(appId, id, name, lastReport, trackers);
+    }, function(err) {
+      removeLoader();
+      renderEmptyState('Tracker list unavailable', 'The report loaded, but the tracker directory could not be fetched right now.');
+      console.log(err);
+    });
+  };
+
+  if (cachedEntry) {
+    onReportReady(cachedEntry.appID, cachedEntry.name, cachedEntry.report);
+    return;
+  }
+
+  $ep.fetchLatestReportFor(
+    appId,
+    function(id, name, lastReport) {
+      $ep.putCachedReport(id, name, lastReport);
+      onReportReady(id, name, lastReport);
+    },
+    function(err) {
+      removeLoader();
+      renderEmptyState('Report unavailable', 'Exodion could not fetch the Exodus Privacy report for this app right now.');
+      console.log(err);
+    }
+  );
+}
+
+setPopupVersion();
+
+$ep.loadReportCache().then(function() {
+  return getActiveWindowTabs();
+}).then(function(tabs) {
   document.getElementById('currentInfo').innerHTML = '';
+  if (!tabs.length) {
+    renderEmptyState('No active tab', 'Open Google Play in the current window to inspect apps and trackers.');
+    return;
+  }
+
   for (var tab of tabs) {
     if (tab.url && tab.url.indexOf('://play.google.com/store/apps/details?id=') !== -1) {
       var query = tab.url.substring(tab.url.indexOf('?'));
       var appId = getParameterByName(query, 'id');
       document.getElementById('currentInfo').innerHTML = '<div class="loader"></div>';
-      $ep.fetchLatestReportFor(appId, function(id, name, lastReport) {
-        if (typeof name !== 'undefined' && lastReport) {
-          $ep.fetchTrackerList(function(trackers) {
-            removeLoader();
-            var zDiv = document.getElementById('currentInfo');
-            var infoP = document.createElement('p');
-            var titleSpan = document.createElement('span');
-            titleSpan.textContent = name || appId;
-            titleSpan.className = 'appName';
-            infoP.appendChild(titleSpan);
-
-            var versionSpan = document.createElement('span');
-            versionSpan.textContent = 'v' + lastReport.version;
-            versionSpan.className = 'appVersion';
-            infoP.appendChild(versionSpan);
-            zDiv.appendChild(infoP);
-
-            var trackerHead = document.createElement('p');
-            trackerHead.className = 'trackerListTop';
-            if (lastReport.trackers.length === 0) {
-              trackerHead.textContent = 'The Exodus Privacy analysis did not found the code signature of any known trackers in this application.';
-            } else if (lastReport.trackers.length === 1) {
-              trackerHead.textContent = 'The Exodus Privacy analysis did found code signature of 1 tracker in this application.';
-            } else {
-              trackerHead.textContent = 'The Exodus Privacy analysis did found code signature of ' + lastReport.trackers.length + ' trackers in this application.';
-            }
-            zDiv.appendChild(trackerHead);
-
-            var ul = document.createElement('ul');
-            ul.className = 'trackerList';
-            for (var i = 0; i < lastReport.trackers.length; i++) {
-              var tracker = lastReport.trackers[i];
-              try {
-                ul.appendChild(
-                  domCreateTrackerLi(
-                    trackers['' + tracker].name,
-                    'https://reports.exodus-privacy.eu.org/trackers/' + tracker + '/'
-                  )
-                );
-              } catch (e) {
-                var li = document.createElement('li');
-                li.textContent = trackers['' + tracker].name;
-                ul.appendChild(li);
-              }
-            }
-            zDiv.appendChild(ul);
-
-            var moreInfoA = document.createElement('a');
-            moreInfoA.target = '_blank';
-            moreInfoA.href = lastReport.id
-              ? 'https://reports.exodus-privacy.eu.org/reports/' + lastReport.id + '/'
-              : 'https://reports.exodus-privacy.eu.org/reports/search/' + id;
-            moreInfoA.textContent = 'Get the full report on Exodus Privacy';
-            zDiv.appendChild(moreInfoA);
-            zDiv.appendChild(document.createElement('hr'));
-          }, function(err) {
-            console.log(err);
-          });
-        } else {
-          removeLoader();
-        }
-      });
+      showAppReport(appId, $ep.getCachedReport(appId));
     } else if (
       tab.url &&
       (
@@ -103,6 +163,8 @@ getActiveWindowTabs().then(function(tabs) {
         removeLoader();
         console.log(err);
       });
+    } else {
+      renderEmptyState('Google Play page not detected', 'Open an app page, search results, or a store listing on Google Play.');
     }
   }
 });
