@@ -3,7 +3,12 @@ window._exodion = {
   lastQ: window.location.href,
   fetchedAt: {},
   inFlight: {},
-  fetchTtlMs: 5 * 60 * 1000
+  fetchTtlMs: 5 * 60 * 1000,
+  knownCacheTtlMs: 7 * 24 * 60 * 60 * 1000,
+  unknownCacheTtlMs: 6 * 60 * 60 * 1000,
+  reportCache: {},
+  cacheLoaded: false,
+  cacheLoadPromise: null
 };
 
 function xlog() {
@@ -58,7 +63,7 @@ function createQuickInfoElement(nbTrackers, appID, reportID) {
   var countSpan = document.createElement('p');
   countSpan.className = 'exodionquick-count';
   if (nbTrackers === -1) {
-    countSpan.textContent = 'Trackers unknown';
+    countSpan.textContent = 'Unknown';
   } else if (nbTrackers === 1) {
     countSpan.textContent = '1 tracker';
   } else {
@@ -67,6 +72,114 @@ function createQuickInfoElement(nbTrackers, appID, reportID) {
   linkWrap.appendChild(countSpan);
 
   return counterDiv;
+}
+
+function getCacheStorageKey() {
+  return 'exodionReportCacheV1';
+}
+
+function getCacheTTL(report) {
+  return report ? window._exodion.knownCacheTtlMs : window._exodion.unknownCacheTtlMs;
+}
+
+function loadReportCache() {
+  if (window._exodion.cacheLoaded) {
+    return Promise.resolve();
+  }
+
+  if (window._exodion.cacheLoadPromise) {
+    return window._exodion.cacheLoadPromise;
+  }
+
+  window._exodion.cacheLoadPromise = browser.storage.local
+    .get(getCacheStorageKey())
+    .then(function(data) {
+      var cache = data[getCacheStorageKey()];
+      window._exodion.reportCache = cache && typeof cache === 'object' ? cache : {};
+      window._exodion.cacheLoaded = true;
+    })
+    .catch(function(err) {
+      xerror('cache:load-failed', { error: '' + err });
+      window._exodion.reportCache = {};
+      window._exodion.cacheLoaded = true;
+    });
+
+  return window._exodion.cacheLoadPromise;
+}
+
+function persistReportCache() {
+  var payload = {};
+  payload[getCacheStorageKey()] = window._exodion.reportCache;
+  browser.storage.local.set(payload).catch(function(err) {
+    xerror('cache:save-failed', { error: '' + err });
+  });
+}
+
+function getCachedReport(appID) {
+  var entry = window._exodion.reportCache[appID];
+  if (!entry) {
+    return null;
+  }
+
+  if (!entry.expiresAt || Date.now() > entry.expiresAt) {
+    delete window._exodion.reportCache[appID];
+    persistReportCache();
+    return null;
+  }
+
+  return entry;
+}
+
+function putCachedReport(appID, name, report) {
+  window._exodion.reportCache[appID] = {
+    appID: appID,
+    name: name || null,
+    report: report || null,
+    expiresAt: Date.now() + getCacheTTL(report)
+  };
+  persistReportCache();
+}
+
+function renderQuickBadge(meta, id, name, report) {
+  var existing = document.getElementById('exodion-' + id);
+  if (existing) {
+    existing.parentElement.removeChild(existing);
+  }
+
+  var nb = report ? report.trackers.length : -1;
+  var reportID = report ? report.id : null;
+  var counterDiv = createQuickInfoElement(nb, id, reportID);
+  if (nb === -1) {
+    counterDiv.className = 'exodion-quickbox mid';
+  } else if (nb === 0) {
+    counterDiv.className = 'exodion-quickbox clean';
+  } else if (nb < 3) {
+    counterDiv.className = 'exodion-quickbox mid';
+  } else {
+    counterDiv.className = 'exodion-quickbox';
+  }
+  counterDiv.setAttribute('data-ep-trackers', report ? JSON.stringify(report.trackers) : '');
+  counterDiv.setAttribute('data-ep-appid', id);
+  counterDiv.setAttribute('data-ep-name', name || '');
+
+  var mount = getQuickBadgeMountElem(meta);
+  mount.appendChild(counterDiv);
+}
+
+function extractAppIDFromHref(href) {
+  if (!href) {
+    return null;
+  }
+
+  try {
+    var url = new URL(href, window.location.origin);
+    if (url.pathname !== '/store/apps/details') {
+      return null;
+    }
+    return url.searchParams.get('id');
+  } catch (e) {
+    return null;
+  }
 }
 
 function createMissingElement(appID) {
@@ -188,65 +301,69 @@ function findAlternativeEl() {
     return [];
   }
 
-  var els = document.querySelectorAll('div.card-content[data-docid]');
-  if (els.length > 0) {
-    var results = [];
-    for (var i = 0; i < els.length; i++) {
-      var el = els[i];
-      var anchors = el.querySelectorAll("a[href^='/store/apps/details?id=']");
-      if (anchors.length > 0) {
-        results.push({ id: el.getAttribute('data-docid'), el: el });
-      }
+  function pushResult(results, ids, id, el, anchor) {
+    if (!id || ids[id]) {
+      return;
     }
-    return results;
+
+    if (window.location.href.indexOf('/store/apps/details?id=' + id) !== -1) {
+      return;
+    }
+
+    ids[id] = true;
+    results.push({
+      id: id,
+      el: el,
+      anchor: anchor
+    });
   }
 
-  els = document.querySelectorAll("a.AnjTGd[href^='/store/apps/details?id=']");
-  if (els.length > 0) {
-    var anjResults = [];
-    for (var j = 0; j < els.length; j++) {
-      var anjEl = els[j];
-      anjResults.push({
-        id: anjEl.getAttribute('href').substring('/store/apps/details?id='.length),
-        el: anjEl.parentNode
-      });
+  var genericResults = [];
+  var genericIds = {};
+  var genericAnchors = document.querySelectorAll('a[href]');
+  for (var i = 0; i < genericAnchors.length; i++) {
+    var anchor = genericAnchors[i];
+    var appID = extractAppIDFromHref(anchor.getAttribute('href'));
+    if (!appID) {
+      continue;
     }
-    return anjResults;
+
+    var cardHost = anchor.closest('[data-docid], [data-item-id], [role="listitem"], c-wiz') || anchor.parentNode;
+    pushResult(genericResults, genericIds, appID, cardHost, anchor);
   }
 
-  els = document.querySelectorAll("a.poRVub[href^='/store/apps/details?id=']");
-  if (els.length > 0) {
-    var poResults = [];
-    for (var k = 0; k < els.length; k++) {
-      var poEl = els[k];
-      poResults.push({
-        id: poEl.getAttribute('href').substring('/store/apps/details?id='.length),
-        el: poEl.parentNode
-      });
-    }
-    return poResults;
+  return genericResults;
+}
+
+function getQuickBadgeMountElem(meta) {
+  var el = meta.el;
+  var anchor = meta.anchor;
+  var mount = el.querySelector('.cover');
+
+  if (!mount && anchor) {
+    mount = anchor.closest('[role="listitem"], [data-docid], [data-item-id]');
   }
 
-  els = document.querySelectorAll("a.card-click-target[href^='/store/apps/details?id=']");
-  if (els.length > 0) {
-    var cardResults = [];
-    for (var m = 0; m < els.length; m++) {
-      var cardEl = els[m];
-      cardResults.push({
-        id: cardEl.getAttribute('href').substring('/store/apps/details?id='.length),
-        el: cardEl.parentNode
-      });
-    }
-    return cardResults;
+  if (!mount && anchor && anchor.parentNode && anchor.parentNode.nodeType === Node.ELEMENT_NODE) {
+    mount = anchor.parentNode;
   }
 
-  return [];
+  if (!mount) {
+    mount = el;
+  }
+
+  if (mount.classList) {
+    mount.classList.add('exodion-badge-host');
+  }
+
+  return mount;
 }
 
 function shouldIgnoreXodify() {
   return window.location.href.indexOf('://play.google.com/apps') === -1 &&
     window.location.href.indexOf('://play.google.com/store/search') === -1 &&
     window.location.href.indexOf('://play.google.com/store/apps') === -1 &&
+    window.location.href.indexOf('://play.google.com/store/games') === -1 &&
     window.location.href.indexOf('://play.google.com/wishlist') === -1;
 }
 
@@ -258,6 +375,9 @@ function appXodify() {
 
   var alternatives = findAlternativeEl();
   xlog('appXodify:alternatives', { count: alternatives.length });
+  if (alternatives.length === 0) {
+    xerror('appXodify:no-alternatives-found', { url: window.location.href });
+  }
 
   for (var i = 0; i < alternatives.length; i++) {
     var alternative = alternatives[i];
@@ -265,6 +385,18 @@ function appXodify() {
     if (existing || window._exodion.inFlight[alternative.id]) {
       continue;
     }
+
+    var cached = getCachedReport(alternative.id);
+    if (cached) {
+      renderQuickBadge(
+        { el: alternative.el, anchor: alternative.anchor },
+        cached.appID,
+        cached.name,
+        cached.report
+      );
+      continue;
+    }
+
     if (
       window._exodion.fetchedAt[alternative.id] &&
       Date.now() - window._exodion.fetchedAt[alternative.id] < window._exodion.fetchTtlMs
@@ -278,37 +410,21 @@ function appXodify() {
       function(id, name, report, meta) {
         window._exodion.inFlight[id] = false;
         window._exodion.fetchedAt[id] = Date.now();
+        putCachedReport(id, name, report);
         xlog('appXodify:repSuccess', { id: id, trackers: report ? report.trackers.length : -1 });
 
         if (window.location.href.indexOf('play.google.com/store/apps/details?id') !== -1) {
           return;
         }
 
-        var nb = report ? report.trackers.length : -1;
-        var el = meta.el;
-        var reportID = report ? report.id : null;
-        var counterDiv = createQuickInfoElement(nb, id, reportID);
-        if (nb === -1) {
-          counterDiv.className = 'exodion-quickbox mid';
-        } else if (nb === 0) {
-          counterDiv.className = 'exodion-quickbox clean';
-        } else if (nb < 3) {
-          counterDiv.className = 'exodion-quickbox mid';
-        } else {
-          counterDiv.className = 'exodion-quickbox';
-        }
-        counterDiv.setAttribute('data-ep-trackers', report ? JSON.stringify(report.trackers) : '');
-        counterDiv.setAttribute('data-ep-appid', id);
-        counterDiv.setAttribute('data-ep-name', name);
-        var rEL = el.querySelectorAll('.cover')[0] || el;
-        rEL.appendChild(counterDiv);
+        renderQuickBadge(meta, id, name, report);
         browser.runtime.sendMessage({ nb: document.querySelectorAll('.exodion-quickbox').length, type: 't4' });
       },
       function() {
         window._exodion.inFlight[alternative.id] = false;
         xerror('appXodify:fetch-failed', { id: alternative.id });
       },
-      { el: alternative.el }
+      { el: alternative.el, anchor: alternative.anchor }
     );
   }
 }
@@ -338,6 +454,28 @@ function exodion() {
     return;
   }
 
+  var cached = getCachedReport(appID);
+  if (cached) {
+    var cachedNb = cached.report ? cached.report.trackers.length : -1;
+    browser.runtime.sendMessage({ appId: appID, nbTrackers: cachedNb, type: 't1' });
+    if (cachedNb === -1) {
+      var cachedMissingCounterDiv = createMissingElement(appID);
+      cachedMissingCounterDiv.className = 'exodion-trackerInfoBoxClean missing';
+      replaceMainExodionBox(appID, cachedMissingCounterDiv);
+    } else {
+      var cachedCounterDiv = createInfoElement(cachedNb, appID, cached.report);
+      if (cachedNb === 0) {
+        cachedCounterDiv.className = 'exodion-trackerInfoBoxClean';
+      } else if (cachedNb < 3) {
+        cachedCounterDiv.className = 'exodion-trackerInfoBoxMid';
+      } else {
+        cachedCounterDiv.className = 'exodion-trackerInfoBox';
+      }
+      replaceMainExodionBox(appID, cachedCounterDiv);
+    }
+    return;
+  }
+
   var mainBox = mainAppBoxElem();
   xlog('exodion:mainBox', {
     found: !!mainBox,
@@ -364,6 +502,7 @@ function exodion() {
     function(id, name, report) {
       window._exodion.inFlight[id] = false;
       window._exodion.fetchedAt[id] = Date.now();
+      putCachedReport(id, name, report);
       var nb = report ? report.trackers.length : -1;
       xlog('exodion:fetch-success', { id: id, trackers: nb, reportId: report ? report.id : null });
 
@@ -403,32 +542,13 @@ function exodion() {
           function(altId, altName, altReport, meta) {
             window._exodion.inFlight[altId] = false;
             window._exodion.fetchedAt[altId] = Date.now();
-            var altNb = altReport ? altReport.trackers.length : -1;
-            var el = meta.el;
-            var reportID = altReport ? altReport.id : null;
-            var existingAlt = document.getElementById('exodion-' + altId);
-            if (existingAlt) {
-              existingAlt.parentElement.removeChild(existingAlt);
-            }
-
-            var altCounterDiv = createQuickInfoElement(altNb, altId, reportID);
-            if (altNb === -1) {
-              altCounterDiv.className = 'exodion-quickbox mid';
-            } else if (altNb === 0) {
-              altCounterDiv.className = 'exodion-quickbox clean';
-            } else if (altNb < 3) {
-              altCounterDiv.className = 'exodion-quickbox mid';
-            } else {
-              altCounterDiv.className = 'exodion-quickbox';
-            }
-
-            var rEL = el.querySelectorAll('.cover')[0] || el;
-            rEL.appendChild(altCounterDiv);
+            putCachedReport(altId, altName, altReport);
+            renderQuickBadge(meta, altId, altName, altReport);
           },
           function() {
             window._exodion.inFlight[alternative.id] = false;
           },
-          { el: alternative.el }
+          { el: alternative.el, anchor: alternative.anchor }
         );
       }
     },
@@ -449,10 +569,16 @@ window.addEventListener('error', function(event) {
 });
 
 xlog('content-script-loaded', { url: window.location.href });
-exodion();
-appXodify();
+loadReportCache().then(function() {
+  exodion();
+  appXodify();
+});
 
 setInterval(function() {
+  if (!window._exodion.cacheLoaded) {
+    return;
+  }
+
   if (window._exodion.lastQ !== window.location.href) {
     browser.runtime.sendMessage({ nb: 0, type: 't4' });
     window._exodion.lastQ = window.location.href;

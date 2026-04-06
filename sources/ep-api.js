@@ -21,6 +21,16 @@ $ep.error = function() {
 
 $ep.isBackgroundContext = function() {
   try {
+    if (
+      typeof window !== 'undefined' &&
+      window.location &&
+      (
+        window.location.protocol === 'moz-extension:' ||
+        window.location.protocol === 'chrome-extension:'
+      )
+    ) {
+      return true;
+    }
     return !!(
       browser &&
       browser.extension &&
