@@ -1,5 +1,5 @@
 window._exodion = {
-  shouldAppExodion: false,
+  shouldAppExodion: true,
   lastQ: window.location.href,
   fetchedAt: {},
   inFlight: {},
@@ -418,20 +418,3 @@ browser.runtime.onMessage.addListener(function(message) {
     });
   }
 });
-
-function onError() {}
-
-function onGot(item) {
-  if (typeof item.extendedExodion !== 'undefined') {
-    if (typeof item.extendedExodion === 'boolean') {
-      window._exodion.shouldAppExodion = item.extendedExodion;
-    } else {
-      window._exodion.shouldAppExodion = item.extendedExodion.newValue;
-    }
-  } else {
-    window._exodion.shouldAppExodion = true;
-  }
-}
-
-browser.storage.local.get('extendedExodion').then(onGot, onError);
-browser.storage.onChanged.addListener(onGot);

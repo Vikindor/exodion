@@ -1,8 +1,3 @@
-const button = document.getElementById('test');
-button.addEventListener('click', function() {
-  browser.runtime.openOptionsPage();
-});
-
 function getParameterByName(query, name) {
   var match = new RegExp('[?&]' + name + '=([^&]*)').exec(query);
   return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
