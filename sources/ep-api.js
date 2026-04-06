@@ -9,13 +9,13 @@ $ep.log = function() {
     return;
   }
   var args = Array.prototype.slice.call(arguments);
-  args.unshift('[Exodify]');
+  args.unshift('[Exodion]');
   console.log.apply(console, args);
 };
 
 $ep.error = function() {
   var args = Array.prototype.slice.call(arguments);
-  args.unshift('[Exodify]');
+  args.unshift('[Exodion]');
   console.error.apply(console, args);
 };
 

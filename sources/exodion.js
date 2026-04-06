@@ -1,5 +1,5 @@
-window._exodify = {
-  shouldAppExodify: false,
+window._exodion = {
+  shouldAppExodion: false,
   lastQ: window.location.href,
   fetchedAt: {},
   inFlight: {},
@@ -28,12 +28,12 @@ function createInfoElement(nbTrackers, appID, report) {
   counterDiv.setAttribute('data-xodify', appID);
 
   var countSpan = document.createElement('span');
-  countSpan.className = 'exodify-count';
+  countSpan.className = 'exodion-count';
   countSpan.textContent = nbTrackers + (nbTrackers <= 1 ? ' Tracker  ' : ' Trackers  ');
   counterDiv.appendChild(countSpan);
 
   var poweredBySpan = document.createElement('a');
-  poweredBySpan.className = 'exodify-powered';
+  poweredBySpan.className = 'exodion-powered';
   poweredBySpan.textContent = 'powered by ExodusPrivacy';
   poweredBySpan.href = report && report.id
     ? 'https://reports.exodus-privacy.eu.org/reports/' + report.id + '/'
@@ -46,7 +46,7 @@ function createInfoElement(nbTrackers, appID, report) {
 
 function createQuickInfoElement(nbTrackers, appID, reportID) {
   var counterDiv = document.createElement('div');
-  counterDiv.id = 'exodify-' + appID;
+  counterDiv.id = 'exodion-' + appID;
 
   var linkWrap = document.createElement('a');
   linkWrap.target = '_blank';
@@ -56,7 +56,7 @@ function createQuickInfoElement(nbTrackers, appID, reportID) {
   counterDiv.appendChild(linkWrap);
 
   var countSpan = document.createElement('p');
-  countSpan.className = 'exodifyquick-count';
+  countSpan.className = 'exodionquick-count';
   if (nbTrackers === -1) {
     countSpan.textContent = 'Unknown';
   } else if (nbTrackers <= 1) {
@@ -74,12 +74,12 @@ function createMissingElement(appID) {
   counterDiv.setAttribute('data-xodify', appID);
 
   var countSpan = document.createElement('span');
-  countSpan.className = 'exodify-count';
+  countSpan.className = 'exodion-count';
   countSpan.textContent = 'Number of trackers unknown ';
   counterDiv.appendChild(countSpan);
 
   var poweredBySpan = document.createElement('a');
-  poweredBySpan.className = 'exodify-powered';
+  poweredBySpan.className = 'exodion-powered';
   poweredBySpan.textContent = 'Would you like to let ExodusPrivacy analyze it?';
   poweredBySpan.href = 'https://reports.exodus-privacy.eu.org/analysis/submit/#' + appID;
   poweredBySpan.target = '_blank';
@@ -186,8 +186,8 @@ function shouldIgnoreXodify() {
 }
 
 function appXodify() {
-  xlog('appXodify:start', { url: window.location.href, enabled: window._exodify.shouldAppExodify });
-  if (!window._exodify.shouldAppExodify || shouldIgnoreXodify()) {
+  xlog('appXodify:start', { url: window.location.href, enabled: window._exodion.shouldAppExodion });
+  if (!window._exodion.shouldAppExodion || shouldIgnoreXodify()) {
     return;
   }
 
@@ -196,23 +196,23 @@ function appXodify() {
 
   for (var i = 0; i < alternatives.length; i++) {
     var alternative = alternatives[i];
-    var existing = document.getElementById('exodify-' + alternative.id);
-    if (existing || window._exodify.inFlight[alternative.id]) {
+    var existing = document.getElementById('exodion-' + alternative.id);
+    if (existing || window._exodion.inFlight[alternative.id]) {
       continue;
     }
     if (
-      window._exodify.fetchedAt[alternative.id] &&
-      Date.now() - window._exodify.fetchedAt[alternative.id] < window._exodify.fetchTtlMs
+      window._exodion.fetchedAt[alternative.id] &&
+      Date.now() - window._exodion.fetchedAt[alternative.id] < window._exodion.fetchTtlMs
     ) {
       continue;
     }
 
-    window._exodify.inFlight[alternative.id] = true;
+    window._exodion.inFlight[alternative.id] = true;
     $ep.fetchLatestReportFor(
       alternative.id,
       function(id, name, report, meta) {
-        window._exodify.inFlight[id] = false;
-        window._exodify.fetchedAt[id] = Date.now();
+        window._exodion.inFlight[id] = false;
+        window._exodion.fetchedAt[id] = Date.now();
         xlog('appXodify:repSuccess', { id: id, trackers: report ? report.trackers.length : -1 });
 
         if (window.location.href.indexOf('play.google.com/store/apps/details?id') !== -1) {
@@ -224,23 +224,23 @@ function appXodify() {
         var reportID = report ? report.id : null;
         var counterDiv = createQuickInfoElement(nb, id, reportID);
         if (nb === -1) {
-          counterDiv.className = 'exodify-quickbox mid';
+          counterDiv.className = 'exodion-quickbox mid';
         } else if (nb === 0) {
-          counterDiv.className = 'exodify-quickbox clean';
+          counterDiv.className = 'exodion-quickbox clean';
         } else if (nb < 3) {
-          counterDiv.className = 'exodify-quickbox mid';
+          counterDiv.className = 'exodion-quickbox mid';
         } else {
-          counterDiv.className = 'exodify-quickbox';
+          counterDiv.className = 'exodion-quickbox';
         }
         counterDiv.setAttribute('data-ep-trackers', report ? JSON.stringify(report.trackers) : '');
         counterDiv.setAttribute('data-ep-appid', id);
         counterDiv.setAttribute('data-ep-name', name);
         var rEL = el.querySelectorAll('.cover')[0] || el;
         rEL.appendChild(counterDiv);
-        browser.runtime.sendMessage({ nb: document.querySelectorAll('.exodify-quickbox').length, type: 't4' });
+        browser.runtime.sendMessage({ nb: document.querySelectorAll('.exodion-quickbox').length, type: 't4' });
       },
       function() {
-        window._exodify.inFlight[alternative.id] = false;
+        window._exodion.inFlight[alternative.id] = false;
         xerror('appXodify:fetch-failed', { id: alternative.id });
       },
       { el: alternative.el }
@@ -248,52 +248,52 @@ function appXodify() {
   }
 }
 
-function getMainExodifyBoxForAppID(id, fromEl) {
+function getMainExodionBoxForAppID(id, fromEl) {
   var query = (fromEl || document).querySelectorAll("[data-xodify='" + id + "']");
   return query[0] || null;
 }
 
-function exodify() {
-  xlog('exodify:start', { url: window.location.href });
+function exodion() {
+  xlog('exodion:start', { url: window.location.href });
   if (window.location.href.indexOf('play.google.com/store/apps/details?') === -1) {
     return;
   }
 
   var appID = getParameterByName('id');
-  xlog('exodify:appID', { appID: appID });
-  if (!appID || window._exodify.inFlight[appID]) {
+  xlog('exodion:appID', { appID: appID });
+  if (!appID || window._exodion.inFlight[appID]) {
     return;
   }
 
   var mainBox = mainAppBoxElem();
-  xlog('exodify:mainBox', {
+  xlog('exodion:mainBox', {
     found: !!mainBox,
     className: mainBox ? mainBox.className : null,
     tagName: mainBox ? mainBox.tagName : null
   });
 
-  if (mainBox && getMainExodifyBoxForAppID(appID, mainBox.parentNode)) {
-    xlog('exodify:already-present', { appID: appID });
+  if (mainBox && getMainExodionBoxForAppID(appID, mainBox.parentNode)) {
+    xlog('exodion:already-present', { appID: appID });
     return;
   }
 
   if (
-    window._exodify.fetchedAt[appID] &&
-    Date.now() - window._exodify.fetchedAt[appID] < window._exodify.fetchTtlMs
+    window._exodion.fetchedAt[appID] &&
+    Date.now() - window._exodion.fetchedAt[appID] < window._exodion.fetchTtlMs
   ) {
     return;
   }
 
-  window._exodify.inFlight[appID] = true;
+  window._exodion.inFlight[appID] = true;
   $ep.fetchLatestReportFor(
     appID,
     function(id, name, report) {
-      window._exodify.inFlight[id] = false;
-      window._exodify.fetchedAt[id] = Date.now();
+      window._exodion.inFlight[id] = false;
+      window._exodion.fetchedAt[id] = Date.now();
       var nb = report ? report.trackers.length : -1;
-      xlog('exodify:fetch-success', { id: id, trackers: nb, reportId: report ? report.id : null });
+      xlog('exodion:fetch-success', { id: id, trackers: nb, reportId: report ? report.id : null });
 
-      var existing = getMainExodifyBoxForAppID(id);
+      var existing = getMainExodionBoxForAppID(id);
       if (existing) {
         existing.parentElement.removeChild(existing);
       }
@@ -301,16 +301,16 @@ function exodify() {
       browser.runtime.sendMessage({ appId: id, nbTrackers: nb, type: 't1' });
       if (nb === -1) {
         var missingCounterDiv = createMissingElement(appID);
-        missingCounterDiv.className = 'exodify-trackerInfoBoxClean missing';
+        missingCounterDiv.className = 'exodion-trackerInfoBoxClean missing';
         injectHtmlInAppContainer(missingCounterDiv);
       } else {
         var counterDiv = createInfoElement(nb, id, report);
         if (nb === 0) {
-          counterDiv.className = 'exodify-trackerInfoBoxClean';
+          counterDiv.className = 'exodion-trackerInfoBoxClean';
         } else if (nb < 3) {
-          counterDiv.className = 'exodify-trackerInfoBoxMid';
+          counterDiv.className = 'exodion-trackerInfoBoxMid';
         } else {
-          counterDiv.className = 'exodify-trackerInfoBox';
+          counterDiv.className = 'exodion-trackerInfoBox';
         }
         injectHtmlInAppContainer(counterDiv);
       }
@@ -319,53 +319,53 @@ function exodify() {
       for (var i = 0; i < alternatives.length; i++) {
         var alternative = alternatives[i];
         if (
-          window._exodify.inFlight[alternative.id] ||
+          window._exodion.inFlight[alternative.id] ||
           (
-            window._exodify.fetchedAt[alternative.id] &&
-            Date.now() - window._exodify.fetchedAt[alternative.id] < window._exodify.fetchTtlMs
+            window._exodion.fetchedAt[alternative.id] &&
+            Date.now() - window._exodion.fetchedAt[alternative.id] < window._exodion.fetchTtlMs
           )
         ) {
           continue;
         }
 
-        window._exodify.inFlight[alternative.id] = true;
+        window._exodion.inFlight[alternative.id] = true;
         $ep.fetchLatestReportFor(
           alternative.id,
           function(altId, altName, altReport, meta) {
-            window._exodify.inFlight[altId] = false;
-            window._exodify.fetchedAt[altId] = Date.now();
+            window._exodion.inFlight[altId] = false;
+            window._exodion.fetchedAt[altId] = Date.now();
             var altNb = altReport ? altReport.trackers.length : -1;
             var el = meta.el;
             var reportID = altReport ? altReport.id : null;
-            var existingAlt = document.getElementById('exodify-' + altId);
+            var existingAlt = document.getElementById('exodion-' + altId);
             if (existingAlt) {
               existingAlt.parentElement.removeChild(existingAlt);
             }
 
             var altCounterDiv = createQuickInfoElement(altNb, altId, reportID);
             if (altNb === -1) {
-              altCounterDiv.className = 'exodify-quickbox mid';
+              altCounterDiv.className = 'exodion-quickbox mid';
             } else if (altNb === 0) {
-              altCounterDiv.className = 'exodify-quickbox clean';
+              altCounterDiv.className = 'exodion-quickbox clean';
             } else if (altNb < 3) {
-              altCounterDiv.className = 'exodify-quickbox mid';
+              altCounterDiv.className = 'exodion-quickbox mid';
             } else {
-              altCounterDiv.className = 'exodify-quickbox';
+              altCounterDiv.className = 'exodion-quickbox';
             }
 
             var rEL = el.querySelectorAll('.cover')[0] || el;
             rEL.appendChild(altCounterDiv);
           },
           function() {
-            window._exodify.inFlight[alternative.id] = false;
+            window._exodion.inFlight[alternative.id] = false;
           },
           { el: alternative.el }
         );
       }
     },
     function() {
-      window._exodify.inFlight[appID] = false;
-      xerror('exodify:main-fetch-failed', { appID: appID });
+      window._exodion.inFlight[appID] = false;
+      xerror('exodion:main-fetch-failed', { appID: appID });
     }
   );
 }
@@ -379,21 +379,21 @@ window.addEventListener('error', function(event) {
 });
 
 xlog('content-script-loaded', { url: window.location.href });
-exodify();
+exodion();
 appXodify();
 
 setInterval(function() {
-  if (window._exodify.lastQ !== window.location.href) {
+  if (window._exodion.lastQ !== window.location.href) {
     browser.runtime.sendMessage({ nb: 0, type: 't4' });
-    window._exodify.lastQ = window.location.href;
-    exodify();
+    window._exodion.lastQ = window.location.href;
+    exodion();
     appXodify();
     return;
   }
 
   if (window.location.href.indexOf('play.google.com/store/apps/details?') !== -1) {
-    if (!getMainExodifyBoxForAppID(getParameterByName('id'))) {
-      exodify();
+    if (!getMainExodionBoxForAppID(getParameterByName('id'))) {
+      exodion();
     }
   } else {
     appXodify();
@@ -402,7 +402,7 @@ setInterval(function() {
 
 browser.runtime.onMessage.addListener(function(message) {
   if (message.type === 't3') {
-    var quickBoxes = document.querySelectorAll('.exodify-quickbox');
+    var quickBoxes = document.querySelectorAll('.exodion-quickbox');
     var metaDatas = [];
     for (var i = 0; i < quickBoxes.length; i++) {
       var qb = quickBoxes[i];
@@ -422,16 +422,16 @@ browser.runtime.onMessage.addListener(function(message) {
 function onError() {}
 
 function onGot(item) {
-  if (typeof item.extendedExodify !== 'undefined') {
-    if (typeof item.extendedExodify === 'boolean') {
-      window._exodify.shouldAppExodify = item.extendedExodify;
+  if (typeof item.extendedExodion !== 'undefined') {
+    if (typeof item.extendedExodion === 'boolean') {
+      window._exodion.shouldAppExodion = item.extendedExodion;
     } else {
-      window._exodify.shouldAppExodify = item.extendedExodify.newValue;
+      window._exodion.shouldAppExodion = item.extendedExodion.newValue;
     }
   } else {
-    window._exodify.shouldAppExodify = true;
+    window._exodion.shouldAppExodion = true;
   }
 }
 
-browser.storage.local.get('extendedExodify').then(onGot, onError);
+browser.storage.local.get('extendedExodion').then(onGot, onError);
 browser.storage.onChanged.addListener(onGot);

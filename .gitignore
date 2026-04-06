@@ -1,6 +1,10 @@
-dest/
-.idea/
+builds/
 config.json
-opera.nex
+
 node_modules/
-opera.pem
+
+.idea/
+.vscode/
+
+Thumbs.db
+.DS_Store
