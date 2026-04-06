@@ -29,12 +29,12 @@ function createInfoElement(nbTrackers, appID, report) {
 
   var countSpan = document.createElement('span');
   countSpan.className = 'exodion-count';
-  countSpan.textContent = nbTrackers + (nbTrackers <= 1 ? ' Tracker  ' : ' Trackers  ');
+  countSpan.textContent = nbTrackers + (nbTrackers === 1 ? ' tracker found' : ' trackers found');
   counterDiv.appendChild(countSpan);
 
   var poweredBySpan = document.createElement('a');
   poweredBySpan.className = 'exodion-powered';
-  poweredBySpan.textContent = 'powered by ExodusPrivacy';
+  poweredBySpan.textContent = 'Open Exodus Privacy report';
   poweredBySpan.href = report && report.id
     ? 'https://reports.exodus-privacy.eu.org/reports/' + report.id + '/'
     : 'https://reports.exodus-privacy.eu.org/reports/search/' + appID;
@@ -50,19 +50,19 @@ function createQuickInfoElement(nbTrackers, appID, reportID) {
 
   var linkWrap = document.createElement('a');
   linkWrap.target = '_blank';
-  if (reportID) {
-    linkWrap.href = 'https://reports.exodus-privacy.eu.org/reports/' + reportID + '/';
-  }
+  linkWrap.href = reportID
+    ? 'https://reports.exodus-privacy.eu.org/reports/' + reportID + '/'
+    : 'https://reports.exodus-privacy.eu.org/reports/search/' + appID;
   counterDiv.appendChild(linkWrap);
 
   var countSpan = document.createElement('p');
   countSpan.className = 'exodionquick-count';
   if (nbTrackers === -1) {
-    countSpan.textContent = 'Unknown';
-  } else if (nbTrackers <= 1) {
-    countSpan.textContent = nbTrackers + ' Tracker';
+    countSpan.textContent = 'Trackers unknown';
+  } else if (nbTrackers === 1) {
+    countSpan.textContent = '1 tracker';
   } else {
-    countSpan.textContent = nbTrackers + ' Trackers';
+    countSpan.textContent = nbTrackers + ' trackers';
   }
   linkWrap.appendChild(countSpan);
 
@@ -75,12 +75,12 @@ function createMissingElement(appID) {
 
   var countSpan = document.createElement('span');
   countSpan.className = 'exodion-count';
-  countSpan.textContent = 'Number of trackers unknown ';
+  countSpan.textContent = 'Tracker count unavailable';
   counterDiv.appendChild(countSpan);
 
   var poweredBySpan = document.createElement('a');
   poweredBySpan.className = 'exodion-powered';
-  poweredBySpan.textContent = 'Would you like to let ExodusPrivacy analyze it?';
+  poweredBySpan.textContent = 'Request an Exodus Privacy analysis';
   poweredBySpan.href = 'https://reports.exodus-privacy.eu.org/analysis/submit/#' + appID;
   poweredBySpan.target = '_blank';
   counterDiv.appendChild(poweredBySpan);
@@ -105,12 +105,41 @@ function mainAppBoxElem() {
   return document.querySelectorAll("c-wiz[jsdata='deferred-i8']")[0];
 }
 
+function getInstallAnchorElem() {
+  var installButton = document.querySelector('button[aria-label="Install"]');
+  if (!installButton) {
+    return null;
+  }
+
+  var anchorElem = installButton;
+  for (var i = 0; i < 7; i++) {
+    if (!anchorElem.parentNode || anchorElem.parentNode.nodeType !== Node.ELEMENT_NODE) {
+      return null;
+    }
+    anchorElem = anchorElem.parentNode;
+  }
+
+  return anchorElem;
+}
+
 function injectHtmlInAppContainer(elem) {
+  var installAnchorElem = getInstallAnchorElem();
+  if (installAnchorElem && installAnchorElem.parentNode) {
+    xlog('injectHtmlInAppContainer:after-install-anchor', {
+      anchorTag: installAnchorElem.tagName,
+      anchorClass: installAnchorElem.className
+    });
+    installAnchorElem.parentNode.insertBefore(elem, installAnchorElem.nextSibling);
+    return;
+  }
+
   var targetElem = mainAppBoxElem();
   if (targetElem) {
     xlog('injectHtmlInAppContainer:before', {
       targetTag: targetElem.tagName,
-      targetClass: targetElem.className
+      targetClass: targetElem.className,
+      anchorTag: targetElem.tagName,
+      anchorClass: targetElem.className
     });
     targetElem.parentNode.insertBefore(elem, targetElem);
   } else {
