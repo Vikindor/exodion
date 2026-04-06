@@ -1,21 +1,16 @@
 module.exports = function(grunt) {
-
-  // Project configuration.
   grunt.initConfig({
     manifest: grunt.file.readJSON('sources/manifest.json'),
     config: grunt.file.readJSON('config.json'),
-
     clean: ['dest'],
-
     copy: {
       dist: {
         expand: true,
         cwd: 'sources',
         src: '**',
-        dest: 'dest/unpacked',
+        dest: 'dest/unpacked'
       }
     },
-
     replace: {
       dist: {
         options: {
@@ -30,31 +25,22 @@ module.exports = function(grunt) {
             }
           ]
         },
-        files: [
-          {expand: true, src: ['dest/**/*.js','dest/**/*.css','dest/**/*.html']}
-        ]
+        files: [{ expand: true, src: ['dest/**/*.js', 'dest/**/*.css', 'dest/**/*.html'] }]
       }
     },
-
     compress: {
       dist: {
         options: {
           archive: 'dest/packed/exodify-<%= manifest.version %>.zip'
         },
-        files: [
-          {expand: true, cwd: 'dest/unpacked', src: ['**'], dest: '/'}, // makes all src relative to cwd
-        ]
+        files: [{ expand: true, cwd: 'dest/unpacked', src: ['**'], dest: '/' }]
       }
     }
-
   });
 
   grunt.loadNpmTasks('grunt-contrib-copy');
   grunt.loadNpmTasks('grunt-contrib-clean');
   grunt.loadNpmTasks('grunt-replace');
   grunt.loadNpmTasks('grunt-contrib-compress');
-
-  // Default task(s).
-  grunt.registerTask('default', ['clean','copy','replace','compress']);
-
+  grunt.registerTask('default', ['clean', 'copy', 'replace', 'compress']);
 };

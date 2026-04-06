@@ -1,53 +1,61 @@
-
-function getParameterByName(query, name) {
-  var match = new RegExp('[?&]' + name + '=([^&]*)').exec(query);
-  return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+function fetchLatestReportPromise(appId) {
+  return new Promise(function(resolve, reject) {
+    $ep.fetchLatestReportFor(
+      appId,
+      function(id, name, report) {
+        resolve({ appID: id, name: name, report: report || null });
+      },
+      reject
+    );
+  });
 }
 
+function fetchTrackerListPromise() {
+  return new Promise(function(resolve, reject) {
+    $ep.fetchTrackerList(
+      function(trackers) {
+        resolve({ trackers: trackers });
+      },
+      reject
+    );
+  });
+}
 
-browser.runtime.onMessage.addListener(function(message,sender) {
-  //console.log("MMMMMM BACKGROUND" + JSON.stringify(message))
-  var tabId = sender.tab.id
-  if (message.type == "t1" ) {
-    var appId = message.appId
-    var nb = message.nbTrackers
-    // tabMem[tabId] =  message.nbTrackers
-    $ep.fetchLatestReportFor(appId,function(id,name,report){
-        const nb = report ? report.trackers.length : -1
-    // fetchNbTrackersFor(appId,function(id,nb){
-      //check that tab url still correct (async)
-        browser.browserAction.setBadgeBackgroundColor({color:'#224955'/*,tabId: tab.id*/})
-        if (nb == -1) {
-          // browser.browserAction.setBadgeBackgroundColor({color:'#fff3cd',tabId: tab.id})
-          browser.browserAction.setBadgeText({text:'',tabId: tabId})
-        } else if (nb == 0 ) {
-          // browser.browserAction.setBadgeBackgroundColor({color:'#d4edda',tabId: tab.id})
-          browser.browserAction.setBadgeText({text:'0',tabId: tabId})
-        } else if (nb < 3) {
-          // browser.browserAction.setBadgeBackgroundColor({color:'#fff3cd',tabId: tab.id})
-          browser.browserAction.setBadgeText({text:''+nb,tabId: tabId})
-        } else {
-          // browser.browserAction.setBadgeBackgroundColor({color:'#f8d7da',tabId: tab.id})
-          browser.browserAction.setBadgeText({text:''+nb,tabId: tabId})
-        }
-        // browser.browserAction.setBadgeText({text:''+nb,tabId: tab.id})
-    })
-      
-  } else if (message.type == "t4" ) {
-    browser.browserAction.setBadgeBackgroundColor({color:'#224955'/*,tabId: tab.id*/})
-    var nb = message.nb
-    if (nb == 0) {
-      browser.browserAction.setBadgeText({text:'',tabId: tabId})
-    } else {
-      browser.browserAction.setBadgeText({text:''+message.nb,tabId: tabId})
-    }
-   //browser.browserAction.setBadgeText({text:''})
+browser.runtime.onMessage.addListener(function(message, sender) {
+  $ep.log('background:onMessage', { type: message.type });
+
+  if (message.type === 'ep_fetchLatestReportFor') {
+    return fetchLatestReportPromise(message.appID);
   }
 
-  }) 
+  if (message.type === 'ep_fetchTrackerList') {
+    return fetchTrackerListPromise();
+  }
 
-browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  browser.browserAction.setBadgeText({text:'',tabId: tabId.tabId})
-})
+  var tabId = sender.tab.id;
 
+  if (message.type === 't1') {
+    var nb = message.nbTrackers;
+    browser.action.setBadgeBackgroundColor({ color: '#224955' });
 
+    if (nb === -1) {
+      browser.action.setBadgeText({ text: '', tabId: tabId });
+    } else if (nb === 0) {
+      browser.action.setBadgeText({ text: '0', tabId: tabId });
+    } else {
+      browser.action.setBadgeText({ text: '' + nb, tabId: tabId });
+    }
+  } else if (message.type === 't4') {
+    browser.action.setBadgeBackgroundColor({ color: '#224955' });
+
+    if (message.nb === 0) {
+      browser.action.setBadgeText({ text: '', tabId: tabId });
+    } else {
+      browser.action.setBadgeText({ text: '' + message.nb, tabId: tabId });
+    }
+  }
+});
+
+browser.tabs.onUpdated.addListener(function(tabId) {
+  browser.action.setBadgeText({ text: '', tabId: tabId });
+});
