@@ -88,6 +88,42 @@ function createMissingElement(appID) {
   return counterDiv;
 }
 
+function createLoadingElement(appID) {
+  var counterDiv = document.createElement('div');
+  counterDiv.setAttribute('data-xodify', appID);
+  counterDiv.className = 'exodion-trackerInfoBoxLoading';
+
+  var countSpan = document.createElement('span');
+  countSpan.className = 'exodion-count';
+  countSpan.textContent = 'Fetching report...';
+  counterDiv.appendChild(countSpan);
+
+  var statusSpan = document.createElement('span');
+  statusSpan.className = 'exodion-powered';
+  statusSpan.textContent = 'Checking Exodus Privacy';
+  counterDiv.appendChild(statusSpan);
+
+  return counterDiv;
+}
+
+function createFetchErrorElement(appID) {
+  var counterDiv = document.createElement('div');
+  counterDiv.setAttribute('data-xodify', appID);
+  counterDiv.className = 'exodion-trackerInfoBoxLoading error';
+
+  var countSpan = document.createElement('span');
+  countSpan.className = 'exodion-count';
+  countSpan.textContent = 'Report fetch failed';
+  counterDiv.appendChild(countSpan);
+
+  var retrySpan = document.createElement('span');
+  retrySpan.className = 'exodion-powered';
+  retrySpan.textContent = 'Retrying automatically';
+  counterDiv.appendChild(retrySpan);
+
+  return counterDiv;
+}
+
 function mainAppBoxElem() {
   var eurist = document.querySelectorAll('div.cover-container')[0];
   if (eurist) {
@@ -282,6 +318,14 @@ function getMainExodionBoxForAppID(id, fromEl) {
   return query[0] || null;
 }
 
+function replaceMainExodionBox(appID, elem) {
+  var existing = getMainExodionBoxForAppID(appID);
+  if (existing) {
+    existing.parentElement.removeChild(existing);
+  }
+  injectHtmlInAppContainer(elem);
+}
+
 function exodion() {
   xlog('exodion:start', { url: window.location.href });
   if (window.location.href.indexOf('play.google.com/store/apps/details?') === -1) {
@@ -314,6 +358,7 @@ function exodion() {
   }
 
   window._exodion.inFlight[appID] = true;
+  replaceMainExodionBox(appID, createLoadingElement(appID));
   $ep.fetchLatestReportFor(
     appID,
     function(id, name, report) {
@@ -322,16 +367,11 @@ function exodion() {
       var nb = report ? report.trackers.length : -1;
       xlog('exodion:fetch-success', { id: id, trackers: nb, reportId: report ? report.id : null });
 
-      var existing = getMainExodionBoxForAppID(id);
-      if (existing) {
-        existing.parentElement.removeChild(existing);
-      }
-
       browser.runtime.sendMessage({ appId: id, nbTrackers: nb, type: 't1' });
       if (nb === -1) {
         var missingCounterDiv = createMissingElement(appID);
         missingCounterDiv.className = 'exodion-trackerInfoBoxClean missing';
-        injectHtmlInAppContainer(missingCounterDiv);
+        replaceMainExodionBox(appID, missingCounterDiv);
       } else {
         var counterDiv = createInfoElement(nb, id, report);
         if (nb === 0) {
@@ -341,7 +381,7 @@ function exodion() {
         } else {
           counterDiv.className = 'exodion-trackerInfoBox';
         }
-        injectHtmlInAppContainer(counterDiv);
+        replaceMainExodionBox(appID, counterDiv);
       }
 
       var alternatives = findAlternativeEl();
@@ -394,6 +434,7 @@ function exodion() {
     },
     function() {
       window._exodion.inFlight[appID] = false;
+      replaceMainExodionBox(appID, createFetchErrorElement(appID));
       xerror('exodion:main-fetch-failed', { appID: appID });
     }
   );

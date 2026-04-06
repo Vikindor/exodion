@@ -1,6 +1,7 @@
 .exodion-trackerInfoBox,
 .exodion-trackerInfoBoxMid,
-.exodion-trackerInfoBoxClean {
+.exodion-trackerInfoBoxClean,
+.exodion-trackerInfoBoxLoading {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -21,7 +22,8 @@
 
 .exodion-trackerInfoBox::before,
 .exodion-trackerInfoBoxMid::before,
-.exodion-trackerInfoBoxClean::before {
+.exodion-trackerInfoBoxClean::before,
+.exodion-trackerInfoBoxLoading::before {
   content: "";
   position: absolute;
   top: 50%;
@@ -48,6 +50,16 @@
   box-shadow: 0 0 0 4px rgba(24, 128, 56, 0.12);
 }
 
+.exodion-trackerInfoBoxLoading::before {
+  background: #5f6368;
+  box-shadow: 0 0 0 4px rgba(95, 99, 104, 0.12);
+}
+
+.exodion-trackerInfoBoxLoading.error::before {
+  background: #d93025;
+  box-shadow: 0 0 0 4px rgba(217, 48, 37, 0.12);
+}
+
 .exodion-count {
   margin: 0;
   font-size: 14px;
@@ -57,13 +69,15 @@
 }
 
 .exodion-trackerInfoBoxClean .exodion-count,
-.exodion-trackerInfoBoxClean.missing .exodion-count {
+.exodion-trackerInfoBoxClean.missing .exodion-count,
+.exodion-trackerInfoBoxLoading .exodion-count {
   white-space: normal;
 }
 
 .exodion-trackerInfoBox a,
 .exodion-trackerInfoBoxMid a,
-.exodion-trackerInfoBoxClean a {
+.exodion-trackerInfoBoxClean a,
+.exodion-trackerInfoBoxLoading .exodion-powered {
   color: #0b57d0;
   font-size: 13px;
   font-weight: 500;
@@ -74,6 +88,10 @@
 .exodion-trackerInfoBoxMid a:hover,
 .exodion-trackerInfoBoxClean a:hover {
   text-decoration: underline;
+}
+
+.exodion-trackerInfoBoxLoading .exodion-powered {
+  color: #5f6368;
 }
 
 .exodion-quickbox {
