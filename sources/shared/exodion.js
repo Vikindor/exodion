@@ -162,6 +162,10 @@ function getExistingQuickBadge(mount, appID) {
   return mount.querySelector('.exodion-quickbox[data-exodion-badge-for="' + appID + '"]');
 }
 
+function getAnyQuickBadgeForAppID(appID) {
+  return document.querySelector('.exodion-quickbox[data-exodion-badge-for="' + appID + '"]');
+}
+
 function getQuickBadgeScope(meta) {
   var el = meta && meta.el;
   var anchor = meta && meta.anchor;
@@ -178,6 +182,44 @@ function getQuickBadgeScope(meta) {
   }
 
   return null;
+}
+
+function buildCurrentPageStatInfos() {
+  var alternatives = findAlternativeEl();
+  var byAppID = {};
+  var infos = [];
+
+  for (var i = 0; i < alternatives.length; i++) {
+    var alternative = alternatives[i];
+    if (!alternative.id || byAppID[alternative.id]) {
+      continue;
+    }
+
+    byAppID[alternative.id] = true;
+
+    var cached = $ep.getCachedReport(alternative.id);
+    if (cached) {
+      infos.push({
+        id: cached.appID,
+        trackers: cached.report ? cached.report.trackers : null,
+        name: cached.name || ''
+      });
+      continue;
+    }
+
+    var scope = getQuickBadgeScope({ el: alternative.el, anchor: alternative.anchor });
+    var mount = getQuickBadgeMountElem({ el: alternative.el, anchor: alternative.anchor });
+    var quickBadge = getExistingQuickBadge(scope || mount, alternative.id) || getAnyQuickBadgeForAppID(alternative.id);
+    var trackers = quickBadge ? quickBadge.getAttribute('data-ep-trackers') : null;
+
+    infos.push({
+      id: alternative.id,
+      trackers: trackers ? JSON.parse(trackers) : null,
+      name: quickBadge ? quickBadge.getAttribute('data-ep-name') : ''
+    });
+  }
+
+  return infos;
 }
 
 function extractAppIDFromHref(href) {
@@ -795,19 +837,8 @@ setInterval(function() {
 
 browser.runtime.onMessage.addListener(function(message) {
   if (message.type === 't3') {
-    var quickBoxes = document.querySelectorAll('.exodion-quickbox');
-    var metaDatas = [];
-    for (var i = 0; i < quickBoxes.length; i++) {
-      var qb = quickBoxes[i];
-      var trackers = qb.getAttribute('data-ep-trackers');
-      metaDatas.push({
-        id: qb.getAttribute('data-ep-appid'),
-        trackers: trackers ? JSON.parse(trackers) : null,
-        name: qb.getAttribute('data-ep-name')
-      });
-    }
     return new Promise(function(resolve) {
-      resolve(metaDatas);
+      resolve(buildCurrentPageStatInfos());
     });
   }
 });

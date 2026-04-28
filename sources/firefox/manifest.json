@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Exodion",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "Shows Exodus Privacy tracker numbers for Android apps on Google Play",
   "icons": {
     "32": "icons/exodion-32.png",
