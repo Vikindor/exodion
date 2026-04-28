@@ -149,6 +149,11 @@ $ep.putCachedReport = function(appID, name, report) {
   $ep.persistReportCache();
 };
 
+$ep.removeCachedReport = function(appID) {
+  delete $ep.reportCache[appID];
+  return $ep.persistReportCache();
+};
+
 $ep.fetchLatestReportFor = function(appID, success, error, meta) {
   if (!$ep.isBackgroundContext()) {
     $ep.log('fetchLatestReportFor:proxy', { appID: appID });

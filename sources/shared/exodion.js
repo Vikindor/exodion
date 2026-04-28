@@ -3,12 +3,7 @@ window._exodion = {
   lastQ: window.location.href,
   fetchedAt: {},
   inFlight: {},
-  fetchTtlMs: 5 * 60 * 1000,
-  knownCacheTtlMs: 7 * 24 * 60 * 60 * 1000,
-  unknownCacheTtlMs: 6 * 60 * 60 * 1000,
-  reportCache: {},
-  cacheLoaded: false,
-  cacheLoadPromise: null
+  fetchTtlMs: 5 * 60 * 1000
 };
 
 function xlog() {
@@ -93,77 +88,6 @@ function createRefreshButton(appID) {
     button.classList.add('is-loading');
   }
   return button;
-}
-
-function getCacheStorageKey() {
-  return 'exodionReportCacheV1';
-}
-
-function getCacheTTL(report) {
-  return report ? window._exodion.knownCacheTtlMs : window._exodion.unknownCacheTtlMs;
-}
-
-function loadReportCache() {
-  if (window._exodion.cacheLoaded) {
-    return Promise.resolve();
-  }
-
-  if (window._exodion.cacheLoadPromise) {
-    return window._exodion.cacheLoadPromise;
-  }
-
-  window._exodion.cacheLoadPromise = browser.storage.local
-    .get(getCacheStorageKey())
-    .then(function(data) {
-      var cache = data[getCacheStorageKey()];
-      window._exodion.reportCache = cache && typeof cache === 'object' ? cache : {};
-      window._exodion.cacheLoaded = true;
-    })
-    .catch(function(err) {
-      xerror('cache:load-failed', { error: '' + err });
-      window._exodion.reportCache = {};
-      window._exodion.cacheLoaded = true;
-    });
-
-  return window._exodion.cacheLoadPromise;
-}
-
-function persistReportCache() {
-  var payload = {};
-  payload[getCacheStorageKey()] = window._exodion.reportCache;
-  browser.storage.local.set(payload).catch(function(err) {
-    xerror('cache:save-failed', { error: '' + err });
-  });
-}
-
-function getCachedReport(appID) {
-  var entry = window._exodion.reportCache[appID];
-  if (!entry) {
-    return null;
-  }
-
-  if (!entry.expiresAt || Date.now() > entry.expiresAt) {
-    delete window._exodion.reportCache[appID];
-    persistReportCache();
-    return null;
-  }
-
-  return entry;
-}
-
-function putCachedReport(appID, name, report) {
-  window._exodion.reportCache[appID] = {
-    appID: appID,
-    name: name || null,
-    report: report || null,
-    expiresAt: Date.now() + getCacheTTL(report)
-  };
-  persistReportCache();
-}
-
-function removeCachedReport(appID) {
-  delete window._exodion.reportCache[appID];
-  persistReportCache();
 }
 
 function renderQuickBadge(meta, id, name, report) {
@@ -430,7 +354,7 @@ function appXodify() {
       continue;
     }
 
-    var cached = getCachedReport(alternative.id);
+    var cached = $ep.getCachedReport(alternative.id);
     if (cached) {
       renderQuickBadge(
         { el: alternative.el, anchor: alternative.anchor },
@@ -454,7 +378,7 @@ function appXodify() {
       function(id, name, report, meta) {
         window._exodion.inFlight[id] = false;
         window._exodion.fetchedAt[id] = Date.now();
-        putCachedReport(id, name, report);
+        $ep.putCachedReport(id, name, report);
         xlog('appXodify:repSuccess', { id: id, trackers: report ? report.trackers.length : -1 });
 
         if (window.location.href.indexOf('play.google.com/store/apps/details?id') !== -1) {
@@ -498,7 +422,7 @@ function exodion(forceRefresh) {
     return;
   }
 
-  var cached = forceRefresh ? null : getCachedReport(appID);
+  var cached = forceRefresh ? null : $ep.getCachedReport(appID);
   if (cached) {
     var cachedNb = cached.report ? cached.report.trackers.length : -1;
     browser.runtime.sendMessage({ appId: appID, nbTrackers: cachedNb, type: 't1' });
@@ -541,7 +465,7 @@ function exodion(forceRefresh) {
   }
 
   if (forceRefresh) {
-    removeCachedReport(appID);
+    $ep.removeCachedReport(appID);
     delete window._exodion.fetchedAt[appID];
   }
 
@@ -552,7 +476,7 @@ function exodion(forceRefresh) {
     function(id, name, report) {
       window._exodion.inFlight[id] = false;
       window._exodion.fetchedAt[id] = Date.now();
-      putCachedReport(id, name, report);
+      $ep.putCachedReport(id, name, report);
       var nb = report ? report.trackers.length : -1;
       xlog('exodion:fetch-success', { id: id, trackers: nb, reportId: report ? report.id : null });
 
@@ -592,7 +516,7 @@ function exodion(forceRefresh) {
           function(altId, altName, altReport, meta) {
             window._exodion.inFlight[altId] = false;
             window._exodion.fetchedAt[altId] = Date.now();
-            putCachedReport(altId, altName, altReport);
+            $ep.putCachedReport(altId, altName, altReport);
             renderQuickBadge(meta, altId, altName, altReport);
           },
           function() {
@@ -619,13 +543,13 @@ window.addEventListener('error', function(event) {
 });
 
 xlog('content-script-loaded', { url: window.location.href });
-loadReportCache().then(function() {
+$ep.loadReportCache().then(function() {
   exodion();
   appXodify();
 });
 
 setInterval(function() {
-  if (!window._exodion.cacheLoaded) {
+  if (!$ep.cacheLoaded) {
     return;
   }
 
