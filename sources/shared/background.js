@@ -1,3 +1,7 @@
+if (typeof importScripts === 'function') {
+  importScripts('browser-polyfill.js', 'ep-api.js');
+}
+
 function fetchLatestReportPromise(appId) {
   return new Promise(function(resolve, reject) {
     $ep.fetchLatestReportFor(

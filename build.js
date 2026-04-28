@@ -2,17 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const rootDir = path.resolve(__dirname, '..');
+const rootDir = __dirname;
 const sourcesDir = path.join(rootDir, 'sources');
-const destDir = path.join(rootDir, 'builds');
-const unpackedDir = path.join(destDir, 'unpacked');
-const packedDir = path.join(destDir, 'packed');
-const manifestPath = path.join(sourcesDir, 'manifest.json');
+const sharedDir = path.join(sourcesDir, 'shared');
+const buildsDir = path.join(rootDir, 'builds');
+const packedDir = path.join(buildsDir, 'packed');
 const configPath = path.join(rootDir, 'config.json');
-
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-}
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -46,7 +41,7 @@ function replaceInFiles(dirPath, replacements) {
       continue;
     }
 
-    if (!/\.(js|css|html)$/.test(entry.name)) {
+    if (!/\.(js|css|html|json)$/.test(entry.name)) {
       continue;
     }
 
@@ -63,52 +58,88 @@ function zipDir(sourceDir, archivePath) {
     fs.rmSync(archivePath, { force: true });
   }
 
-  const command = [
-    "Compress-Archive",
-    "-Path",
-    "'*'",
-    "-DestinationPath",
-    `'${archivePath.replace(/'/g, "''")}'`,
-    "-Force"
-  ].join(' ');
+  const script = [
+    "Add-Type -AssemblyName 'System.IO.Compression'",
+    "Add-Type -AssemblyName 'System.IO.Compression.FileSystem'",
+    `$source = '${sourceDir.replace(/'/g, "''")}'`,
+    `$archive = '${archivePath.replace(/'/g, "''")}'`,
+    "$sourcePath = (Resolve-Path $source).Path",
+    "if (-not $sourcePath.EndsWith([System.IO.Path]::DirectorySeparatorChar)) { $sourcePath += [System.IO.Path]::DirectorySeparatorChar }",
+    "$files = Get-ChildItem -Path $sourcePath -Recurse -File",
+    "$stream = [System.IO.File]::Open($archive, [System.IO.FileMode]::Create)",
+    "try {",
+    "  $zip = New-Object System.IO.Compression.ZipArchive($stream, [System.IO.Compression.ZipArchiveMode]::Create, $false)",
+    "  try {",
+    "    foreach ($file in $files) {",
+    "      $relativePath = $file.FullName.Substring($sourcePath.Length).Replace('\\', '/')",
+    "      $entry = $zip.CreateEntry($relativePath, [System.IO.Compression.CompressionLevel]::Optimal)",
+    "      $entryStream = $entry.Open()",
+    "      try {",
+    "        $fileStream = [System.IO.File]::OpenRead($file.FullName)",
+    "        try {",
+    "          $fileStream.CopyTo($entryStream)",
+    "        } finally {",
+    "          if ($fileStream) { $fileStream.Dispose() }",
+    "        }",
+    "      } finally {",
+    "        if ($entryStream) { $entryStream.Dispose() }",
+    "      }",
+    "    }",
+    "  } finally {",
+    "    if ($zip) { $zip.Dispose() }",
+    "  }",
+    "} finally {",
+    "  if ($stream) { $stream.Dispose() }",
+    "}"
+  ].join('; ');
 
-  const result = spawnSync(
-    'powershell',
-    ['-NoProfile', '-Command', command],
-    {
-      cwd: sourceDir,
-      stdio: 'inherit'
-    }
-  );
+  const result = spawnSync('powershell', ['-NoProfile', '-Command', script], {
+    stdio: 'inherit'
+  });
 
   if (result.status !== 0) {
     process.exit(result.status || 1);
   }
 }
 
-function main() {
+function readConfig() {
   if (!fs.existsSync(configPath)) {
     console.error('Missing config.json with apiToken');
     process.exit(1);
   }
 
-  const manifest = readJson(manifestPath);
-  const config = readJson(configPath);
-  const archivePath = path.join(packedDir, `exodion-${manifest.version}.zip`);
+  return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+}
 
-  removeDir(destDir);
-  ensureDir(unpackedDir);
-  ensureDir(packedDir);
+function buildBrowser(browserName, config) {
+  const browserSourceDir = path.join(sourcesDir, browserName);
+  const outputDir = path.join(buildsDir, browserName);
+  const manifest = JSON.parse(fs.readFileSync(path.join(browserSourceDir, 'manifest.json'), 'utf8'));
+  const archivePath = path.join(packedDir, `exodion_${browserName}_v${manifest.version}.zip`);
 
-  copyDir(sourcesDir, unpackedDir);
-  replaceInFiles(unpackedDir, [
-    ['@@version', manifest.version],
+  removeDir(outputDir);
+  ensureDir(outputDir);
+
+  copyDir(sharedDir, outputDir);
+  copyDir(browserSourceDir, outputDir);
+  replaceInFiles(outputDir, [
     ['@@API_TOKEN', config.apiToken]
   ]);
-  zipDir(unpackedDir, archivePath);
+  zipDir(outputDir, archivePath);
 
-  console.log(`Built unpacked extension at ${unpackedDir}`);
-  console.log(`Built archive at ${archivePath}`);
+  console.log(`Built ${browserName} extension at ${outputDir}`);
+  console.log(`Built ${browserName} archive at ${archivePath}`);
+}
+
+function main() {
+  const config = readConfig();
+
+  removeDir(buildsDir);
+  ensureDir(buildsDir);
+  ensureDir(packedDir);
+
+  buildBrowser('chrome', config);
+  buildBrowser('firefox', config);
 }
 
 main();
