@@ -3,7 +3,11 @@ window._exodion = {
   lastQ: window.location.href,
   fetchedAt: {},
   inFlight: {},
-  fetchTtlMs: 5 * 60 * 1000
+  fetchTtlMs: 5 * 60 * 1000,
+  observer: null,
+  appXodifyTimer: null,
+  maxConcurrentBadgeFetches: 6,
+  activeBadgeFetches: 0
 };
 
 function xlog() {
@@ -52,7 +56,7 @@ function createInfoElement(nbTrackers, appID, report) {
 
 function createQuickInfoElement(nbTrackers, appID, reportID) {
   var counterDiv = document.createElement('div');
-  counterDiv.id = 'exodion-' + appID;
+  counterDiv.setAttribute('data-exodion-badge-for', appID);
 
   var linkWrap = document.createElement('a');
   linkWrap.target = '_blank';
@@ -91,7 +95,8 @@ function createRefreshButton(appID) {
 }
 
 function renderQuickBadge(meta, id, name, report) {
-  var existing = document.getElementById('exodion-' + id);
+  var mount = getQuickBadgeMountElem(meta);
+  var existing = getExistingQuickBadge(mount, id);
   if (existing) {
     existing.parentElement.removeChild(existing);
   }
@@ -111,9 +116,15 @@ function renderQuickBadge(meta, id, name, report) {
   counterDiv.setAttribute('data-ep-trackers', report ? JSON.stringify(report.trackers) : '');
   counterDiv.setAttribute('data-ep-appid', id);
   counterDiv.setAttribute('data-ep-name', name || '');
-
-  var mount = getQuickBadgeMountElem(meta);
   mount.appendChild(counterDiv);
+}
+
+function getExistingQuickBadge(mount, appID) {
+  if (!mount || !mount.querySelector) {
+    return null;
+  }
+
+  return mount.querySelector('.exodion-quickbox[data-exodion-badge-for="' + appID + '"]');
 }
 
 function extractAppIDFromHref(href) {
@@ -286,6 +297,28 @@ function findAlternativeEl() {
     });
   }
 
+  function getCardHost(anchor) {
+    var listItem = anchor.closest('[role="listitem"]');
+    if (listItem) {
+      var node = anchor;
+      while (node && node.parentElement && node.parentElement !== listItem) {
+        node = node.parentElement;
+      }
+
+      if (node && node.parentElement === listItem) {
+        return node;
+      }
+
+      return listItem.firstElementChild || listItem;
+    }
+
+    return anchor.closest('[role="listitem"]') ||
+      anchor.closest('[data-docid]') ||
+      anchor.closest('[data-item-id]') ||
+      anchor.closest('c-wiz') ||
+      anchor.parentNode;
+  }
+
   var genericResults = [];
   var genericIds = {};
   var genericAnchors = document.querySelectorAll('a[href]');
@@ -296,7 +329,7 @@ function findAlternativeEl() {
       continue;
     }
 
-    var cardHost = anchor.closest('[data-docid], [data-item-id], [role="listitem"], c-wiz') || anchor.parentNode;
+    var cardHost = getCardHost(anchor);
     pushResult(genericResults, genericIds, appID, cardHost, anchor);
   }
 
@@ -306,10 +339,39 @@ function findAlternativeEl() {
 function getQuickBadgeMountElem(meta) {
   var el = meta.el;
   var anchor = meta.anchor;
-  var mount = el.querySelector('.cover');
+  var mount = null;
+
+  if (el && el.parentElement && el.parentElement.getAttribute && el.parentElement.getAttribute('role') === 'listitem') {
+    mount = el;
+  }
+
+  if (!mount && el && el.getAttribute && el.getAttribute('role') === 'listitem') {
+    mount = el.firstElementChild;
+  }
+
+  if (!mount && el && el.querySelector) {
+    mount = el.querySelector('.cover');
+  }
 
   if (!mount && anchor) {
-    mount = anchor.closest('[role="listitem"], [data-docid], [data-item-id]');
+    var listItem = anchor.closest('[role="listitem"]');
+    if (listItem) {
+      var node = anchor;
+      while (node && node.parentElement && node.parentElement !== listItem) {
+        node = node.parentElement;
+      }
+
+      if (node && node.parentElement === listItem) {
+        mount = node;
+      } else {
+        mount = listItem.firstElementChild || listItem;
+      }
+    }
+  }
+
+  if (!mount && anchor) {
+    mount = anchor.closest('[data-docid]') ||
+      anchor.closest('[data-item-id]');
   }
 
   if (!mount && anchor && anchor.parentNode && anchor.parentNode.nodeType === Node.ELEMENT_NODE) {
@@ -349,7 +411,8 @@ function appXodify() {
 
   for (var i = 0; i < alternatives.length; i++) {
     var alternative = alternatives[i];
-    var existing = document.getElementById('exodion-' + alternative.id);
+    var mount = getQuickBadgeMountElem({ el: alternative.el, anchor: alternative.anchor });
+    var existing = getExistingQuickBadge(mount, alternative.id);
     if (existing || window._exodion.inFlight[alternative.id]) {
       continue;
     }
@@ -372,29 +435,74 @@ function appXodify() {
       continue;
     }
 
+    if (window._exodion.activeBadgeFetches >= window._exodion.maxConcurrentBadgeFetches) {
+      continue;
+    }
+
+    window._exodion.activeBadgeFetches += 1;
     window._exodion.inFlight[alternative.id] = true;
     $ep.fetchLatestReportFor(
       alternative.id,
       function(id, name, report, meta) {
         window._exodion.inFlight[id] = false;
+        window._exodion.activeBadgeFetches = Math.max(0, window._exodion.activeBadgeFetches - 1);
         window._exodion.fetchedAt[id] = Date.now();
         $ep.putCachedReport(id, name, report);
         xlog('appXodify:repSuccess', { id: id, trackers: report ? report.trackers.length : -1 });
 
         if (window.location.href.indexOf('play.google.com/store/apps/details?id') !== -1) {
+          scheduleAppXodify(0);
           return;
         }
 
         renderQuickBadge(meta, id, name, report);
         browser.runtime.sendMessage({ nb: document.querySelectorAll('.exodion-quickbox').length, type: 't4' });
+        scheduleAppXodify(0);
       },
       function() {
         window._exodion.inFlight[alternative.id] = false;
+        window._exodion.activeBadgeFetches = Math.max(0, window._exodion.activeBadgeFetches - 1);
         xerror('appXodify:fetch-failed', { id: alternative.id });
+        scheduleAppXodify(1000);
       },
       { el: alternative.el, anchor: alternative.anchor }
     );
   }
+}
+
+function scheduleAppXodify(delayMs) {
+  if (window._exodion.appXodifyTimer) {
+    clearTimeout(window._exodion.appXodifyTimer);
+  }
+
+  window._exodion.appXodifyTimer = setTimeout(function() {
+    window._exodion.appXodifyTimer = null;
+    appXodify();
+  }, typeof delayMs === 'number' ? delayMs : 150);
+}
+
+function startAppXodifyObserver() {
+  if (window._exodion.observer || !document.body || shouldIgnoreXodify()) {
+    return;
+  }
+
+  window._exodion.observer = new MutationObserver(function(mutations) {
+    for (var i = 0; i < mutations.length; i++) {
+      if (mutations[i].addedNodes && mutations[i].addedNodes.length > 0) {
+        scheduleAppXodify(150);
+        return;
+      }
+    }
+  });
+
+  window._exodion.observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+
+  window.addEventListener('scroll', function() {
+    scheduleAppXodify(150);
+  }, { passive: true });
 }
 
 function getMainExodionBoxForAppID(id, fromEl) {
@@ -546,6 +654,7 @@ xlog('content-script-loaded', { url: window.location.href });
 $ep.loadReportCache().then(function() {
   exodion();
   appXodify();
+  startAppXodifyObserver();
 });
 
 setInterval(function() {
@@ -558,6 +667,7 @@ setInterval(function() {
     window._exodion.lastQ = window.location.href;
     exodion();
     appXodify();
+    startAppXodifyObserver();
     return;
   }
 
