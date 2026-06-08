@@ -16,20 +16,6 @@ function getActiveWindowTabs() {
   return browser.tabs.query({ currentWindow: true, active: true });
 }
 
-function isPlayAppDetailsPage(url) {
-  return !!(url && url.indexOf('://play.google.com/store/apps/details?id=') !== -1);
-}
-
-function isPlayListingPage(url) {
-  return !!(
-    url &&
-    (
-      url.indexOf('://play.google.com/store/apps') !== -1 ||
-      url.indexOf('://play.google.com/store/games') !== -1
-    )
-  );
-}
-
 function removeLoader() {
   var els = document.querySelectorAll('.loader');
   for (var i = 0; i < els.length; i++) {
@@ -152,12 +138,12 @@ $ep.loadReportCache().then(function() {
   }
 
   for (var tab of tabs) {
-    if (isPlayAppDetailsPage(tab.url)) {
+    if ($ep.isPlayAppDetailsPage(tab.url)) {
       var query = tab.url.substring(tab.url.indexOf('?'));
       var appId = getParameterByName(query, 'id');
       document.getElementById('currentInfo').innerHTML = '<div class="loader"></div>';
       showAppReport(appId, $ep.getCachedReport(appId));
-    } else if (isPlayListingPage(tab.url)) {
+    } else if ($ep.isPlayListingPage(tab.url)) {
       browser.tabs.sendMessage(tab.id, { type: 't3' });
       document.getElementById('currentInfo').innerHTML = '<div class="loader"></div>';
       $ep.fetchTrackerList(function(trackers) {

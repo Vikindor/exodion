@@ -24,6 +24,26 @@ $ep.error = function() {
   console.error.apply(console, args);
 };
 
+$ep.isPlayAppDetailsPage = function(url) {
+  return !!(url && url.indexOf('://play.google.com/store/apps/details?id=') !== -1);
+};
+
+$ep.isPlayListingPage = function(url) {
+  return !!(
+    url &&
+    (
+      url.indexOf('://play.google.com/store/apps') !== -1 ||
+      url.indexOf('://play.google.com/store/games') !== -1 ||
+      url.indexOf('://play.google.com/wishlist') !== -1
+    ) &&
+    !$ep.isPlayAppDetailsPage(url)
+  );
+};
+
+$ep.isSupportedPlayPage = function(url) {
+  return $ep.isPlayAppDetailsPage(url) || $ep.isPlayListingPage(url);
+};
+
 $ep.isBackgroundContext = function() {
   try {
     if (

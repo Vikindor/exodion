@@ -5,12 +5,12 @@ window._exodion = {
   inFlight: {},
   fetchTtlMs: 5 * 60 * 1000,
   observer: null,
-  appXodifyTimer: null,
+  appExodionTimer: null,
   maxConcurrentBadgeFetches: 6,
   activeBadgeFetches: 0,
   hostSeq: 0,
   listingInteractionListenerAttached: false,
-  appXodifyFollowUpTimer: null
+  appExodionFollowUpTimer: null
 };
 
 function xlog() {
@@ -32,7 +32,7 @@ function getParameterByName(name) {
 
 function createInfoElement(nbTrackers, appID, report) {
   var counterDiv = document.createElement('div');
-  counterDiv.setAttribute('data-xodify', appID);
+  counterDiv.setAttribute('data-exodion', appID);
 
   var countSpan = document.createElement('span');
   countSpan.className = 'exodion-count';
@@ -242,7 +242,7 @@ function extractAppIDFromHref(href) {
 
 function createMissingElement(appID) {
   var counterDiv = document.createElement('div');
-  counterDiv.setAttribute('data-xodify', appID);
+  counterDiv.setAttribute('data-exodion', appID);
 
   var countSpan = document.createElement('span');
   countSpan.className = 'exodion-count';
@@ -267,7 +267,7 @@ function createMissingElement(appID) {
 
 function createLoadingElement(appID, isRefreshing) {
   var counterDiv = document.createElement('div');
-  counterDiv.setAttribute('data-xodify', appID);
+  counterDiv.setAttribute('data-exodion', appID);
   counterDiv.className = 'exodion-trackerInfoBoxLoading';
 
   var countSpan = document.createElement('span');
@@ -291,7 +291,7 @@ function createLoadingElement(appID, isRefreshing) {
 
 function createFetchErrorElement(appID) {
   var counterDiv = document.createElement('div');
-  counterDiv.setAttribute('data-xodify', appID);
+  counterDiv.setAttribute('data-exodion', appID);
   counterDiv.className = 'exodion-trackerInfoBoxLoading error';
 
   var countSpan = document.createElement('span');
@@ -526,24 +526,16 @@ function getQuickBadgeMountElem(meta) {
   return mount;
 }
 
-function shouldIgnoreXodify() {
-  return window.location.href.indexOf('://play.google.com/apps') === -1 &&
-    window.location.href.indexOf('://play.google.com/store/search') === -1 &&
-    window.location.href.indexOf('://play.google.com/store/apps') === -1 &&
-    window.location.href.indexOf('://play.google.com/store/games') === -1 &&
-    window.location.href.indexOf('://play.google.com/wishlist') === -1;
-}
-
-function appXodify() {
-  xlog('appXodify:start', { url: window.location.href, enabled: window._exodion.shouldAppExodion });
-  if (!window._exodion.shouldAppExodion || shouldIgnoreXodify()) {
+function appExodion() {
+  xlog('appExodion:start', { url: window.location.href, enabled: window._exodion.shouldAppExodion });
+  if (!window._exodion.shouldAppExodion || !$ep.isSupportedPlayPage(window.location.href)) {
     return;
   }
 
   var alternatives = findAlternativeEl();
-  xlog('appXodify:alternatives', { count: alternatives.length });
+  xlog('appExodion:alternatives', { count: alternatives.length });
   if (alternatives.length === 0) {
-    xerror('appXodify:no-alternatives-found', { url: window.location.href });
+    xerror('appExodion:no-alternatives-found', { url: window.location.href });
   }
 
   for (var i = 0; i < alternatives.length; i++) {
@@ -586,52 +578,52 @@ function appXodify() {
         window._exodion.activeBadgeFetches = Math.max(0, window._exodion.activeBadgeFetches - 1);
         window._exodion.fetchedAt[id] = Date.now();
         $ep.putCachedReport(id, name, report);
-        xlog('appXodify:repSuccess', { id: id, trackers: report ? report.trackers.length : -1 });
+        xlog('appExodion:repSuccess', { id: id, trackers: report ? report.trackers.length : -1 });
 
-        if (window.location.href.indexOf('play.google.com/store/apps/details?id') !== -1) {
-          scheduleAppXodify(0);
+        if ($ep.isPlayAppDetailsPage(window.location.href)) {
+          scheduleAppExodion(0);
           return;
         }
 
         renderQuickBadge(meta, id, name, report);
         browser.runtime.sendMessage({ nb: document.querySelectorAll('.exodion-quickbox').length, type: 't4' });
-        scheduleAppXodify(0);
+        scheduleAppExodion(0);
       },
       function() {
         window._exodion.inFlight[alternative.id] = false;
         window._exodion.activeBadgeFetches = Math.max(0, window._exodion.activeBadgeFetches - 1);
-        xerror('appXodify:fetch-failed', { id: alternative.id });
-        scheduleAppXodify(1000);
+        xerror('appExodion:fetch-failed', { id: alternative.id });
+        scheduleAppExodion(1000);
       },
       { el: alternative.el, anchor: alternative.anchor }
     );
   }
 }
 
-function scheduleAppXodify(delayMs) {
-  if (window._exodion.appXodifyTimer) {
-    clearTimeout(window._exodion.appXodifyTimer);
+function scheduleAppExodion(delayMs) {
+  if (window._exodion.appExodionTimer) {
+    clearTimeout(window._exodion.appExodionTimer);
   }
 
-  window._exodion.appXodifyTimer = setTimeout(function() {
-    window._exodion.appXodifyTimer = null;
-    appXodify();
+  window._exodion.appExodionTimer = setTimeout(function() {
+    window._exodion.appExodionTimer = null;
+    appExodion();
   }, typeof delayMs === 'number' ? delayMs : 150);
 }
 
-function scheduleAppXodifyFollowUp(delayMs) {
-  if (window._exodion.appXodifyFollowUpTimer) {
-    clearTimeout(window._exodion.appXodifyFollowUpTimer);
+function scheduleAppExodionFollowUp(delayMs) {
+  if (window._exodion.appExodionFollowUpTimer) {
+    clearTimeout(window._exodion.appExodionFollowUpTimer);
   }
 
-  window._exodion.appXodifyFollowUpTimer = setTimeout(function() {
-    window._exodion.appXodifyFollowUpTimer = null;
-    scheduleAppXodify(0);
+  window._exodion.appExodionFollowUpTimer = setTimeout(function() {
+    window._exodion.appExodionFollowUpTimer = null;
+    scheduleAppExodion(0);
   }, typeof delayMs === 'number' ? delayMs : 1200);
 }
 
-function startAppXodifyObserver() {
-  if (window._exodion.observer || !document.body || shouldIgnoreXodify()) {
+function startAppExodionObserver() {
+  if (window._exodion.observer || !document.body || !$ep.isSupportedPlayPage(window.location.href)) {
     return;
   }
 
@@ -654,7 +646,7 @@ function startAppXodifyObserver() {
         }
 
         if (removedBadge) {
-          scheduleAppXodify(150);
+          scheduleAppExodion(150);
           return;
         }
       }
@@ -679,7 +671,7 @@ function startAppXodifyObserver() {
           continue;
         }
 
-        scheduleAppXodify(150);
+        scheduleAppExodion(150);
         return;
       }
     }
@@ -691,18 +683,18 @@ function startAppXodifyObserver() {
   });
 
   window.addEventListener('scroll', function() {
-    scheduleAppXodify(150);
+    scheduleAppExodion(150);
   }, { passive: true });
 
   document.addEventListener('scroll', function() {
-    scheduleAppXodify(150);
+    scheduleAppExodion(150);
   }, { passive: true, capture: true });
 
   if (!window._exodion.listingInteractionListenerAttached) {
     document.addEventListener('click', function(event) {
       if (
-        shouldIgnoreXodify() ||
-        window.location.href.indexOf('play.google.com/store/apps/details?') !== -1
+        !$ep.isSupportedPlayPage(window.location.href) ||
+        $ep.isPlayAppDetailsPage(window.location.href)
       ) {
         return;
       }
@@ -712,8 +704,8 @@ function startAppXodifyObserver() {
         return;
       }
 
-      scheduleAppXodify(350);
-      scheduleAppXodifyFollowUp(1200);
+      scheduleAppExodion(350);
+      scheduleAppExodionFollowUp(1200);
     }, true);
 
     window._exodion.listingInteractionListenerAttached = true;
@@ -721,7 +713,7 @@ function startAppXodifyObserver() {
 }
 
 function getMainExodionBoxForAppID(id, fromEl) {
-  var query = (fromEl || document).querySelectorAll("[data-xodify='" + id + "']");
+  var query = (fromEl || document).querySelectorAll("[data-exodion='" + id + "']");
   return query[0] || null;
 }
 
@@ -735,7 +727,7 @@ function replaceMainExodionBox(appID, elem) {
 
 function exodion(forceRefresh) {
   xlog('exodion:start', { url: window.location.href });
-  if (window.location.href.indexOf('play.google.com/store/apps/details?') === -1) {
+  if (!$ep.isPlayAppDetailsPage(window.location.href)) {
     return;
   }
 
@@ -868,8 +860,8 @@ window.addEventListener('error', function(event) {
 xlog('content-script-loaded', { url: window.location.href });
 $ep.loadReportCache().then(function() {
   exodion();
-  appXodify();
-  startAppXodifyObserver();
+  appExodion();
+  startAppExodionObserver();
 });
 
 setInterval(function() {
@@ -881,17 +873,17 @@ setInterval(function() {
     browser.runtime.sendMessage({ nb: 0, type: 't4' });
     window._exodion.lastQ = window.location.href;
     exodion();
-    appXodify();
-    startAppXodifyObserver();
+    appExodion();
+    startAppExodionObserver();
     return;
   }
 
-  if (window.location.href.indexOf('play.google.com/store/apps/details?') !== -1) {
+  if ($ep.isPlayAppDetailsPage(window.location.href)) {
     if (!getMainExodionBoxForAppID(getParameterByName('id'))) {
       exodion();
     }
   } else {
-    appXodify();
+    appExodion();
   }
 }, 15000);
 
