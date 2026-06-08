@@ -8,7 +8,9 @@ window._exodion = {
   appXodifyTimer: null,
   maxConcurrentBadgeFetches: 6,
   activeBadgeFetches: 0,
-  hostSeq: 0
+  hostSeq: 0,
+  listingInteractionListenerAttached: false,
+  appXodifyFollowUpTimer: null
 };
 
 function xlog() {
@@ -617,6 +619,17 @@ function scheduleAppXodify(delayMs) {
   }, typeof delayMs === 'number' ? delayMs : 150);
 }
 
+function scheduleAppXodifyFollowUp(delayMs) {
+  if (window._exodion.appXodifyFollowUpTimer) {
+    clearTimeout(window._exodion.appXodifyFollowUpTimer);
+  }
+
+  window._exodion.appXodifyFollowUpTimer = setTimeout(function() {
+    window._exodion.appXodifyFollowUpTimer = null;
+    scheduleAppXodify(0);
+  }, typeof delayMs === 'number' ? delayMs : 1200);
+}
+
 function startAppXodifyObserver() {
   if (window._exodion.observer || !document.body || shouldIgnoreXodify()) {
     return;
@@ -624,6 +637,28 @@ function startAppXodifyObserver() {
 
   window._exodion.observer = new MutationObserver(function(mutations) {
     for (var i = 0; i < mutations.length; i++) {
+      if (mutations[i].removedNodes && mutations[i].removedNodes.length > 0) {
+        var removedBadge = false;
+        for (var k = 0; k < mutations[i].removedNodes.length; k++) {
+          var removedNode = mutations[i].removedNodes[k];
+          if (
+            removedNode.nodeType === Node.ELEMENT_NODE &&
+            (
+              (removedNode.classList && removedNode.classList.contains('exodion-quickbox')) ||
+              (removedNode.querySelector && removedNode.querySelector('.exodion-quickbox'))
+            )
+          ) {
+            removedBadge = true;
+            break;
+          }
+        }
+
+        if (removedBadge) {
+          scheduleAppXodify(150);
+          return;
+        }
+      }
+
       if (mutations[i].addedNodes && mutations[i].addedNodes.length > 0) {
         var hasExternalNodes = false;
         for (var j = 0; j < mutations[i].addedNodes.length; j++) {
@@ -658,6 +693,31 @@ function startAppXodifyObserver() {
   window.addEventListener('scroll', function() {
     scheduleAppXodify(150);
   }, { passive: true });
+
+  document.addEventListener('scroll', function() {
+    scheduleAppXodify(150);
+  }, { passive: true, capture: true });
+
+  if (!window._exodion.listingInteractionListenerAttached) {
+    document.addEventListener('click', function(event) {
+      if (
+        shouldIgnoreXodify() ||
+        window.location.href.indexOf('play.google.com/store/apps/details?') !== -1
+      ) {
+        return;
+      }
+
+      var carouselButton = event.target.closest('button[aria-label="Scroll Previous"], button[aria-label="Scroll Next"]');
+      if (!carouselButton) {
+        return;
+      }
+
+      scheduleAppXodify(350);
+      scheduleAppXodifyFollowUp(1200);
+    }, true);
+
+    window._exodion.listingInteractionListenerAttached = true;
+  }
 }
 
 function getMainExodionBoxForAppID(id, fromEl) {
