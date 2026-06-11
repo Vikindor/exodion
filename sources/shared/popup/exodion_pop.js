@@ -165,6 +165,7 @@ $ep.loadReportCache().then(function() {
 function createStatInfos(infos, trackers) {
   var zDiv = document.getElementById('currentInfo');
   zDiv.innerHTML = '';
+  setCurrentPanelTitle('Current page');
   if (infos.length === 0) {
     return;
   }
@@ -177,26 +178,62 @@ function createStatInfos(infos, trackers) {
   var analyzedInfo = infos.filter(function(info) {
     return Array.isArray(info.trackers);
   });
-  zDiv.appendChild(createStatFactHtml(analyzedInfo.length, 'App(s) with existing analysis.'));
+  var unanalyzedInfo = infos.filter(function(info) {
+    return !Array.isArray(info.trackers);
+  });
+  var zeroTrackerInfo = analyzedInfo.filter(function(info) {
+    return info.trackers.length === 0;
+  });
 
-  if (infos.length - analyzedInfo.length > 0) {
-    zDiv.appendChild(createStatFactHtml(infos.length - analyzedInfo.length, 'App(s) not yet analyzed.'));
+  zDiv.appendChild(createStatFactHtml(
+    analyzedInfo.length,
+    'App(s) with existing analysis',
+    analyzedInfo,
+    'Apps with existing analysis',
+    'trackers',
+    infos,
+    trackers
+  ));
+
+  if (unanalyzedInfo.length > 0) {
+    zDiv.appendChild(createStatFactHtml(
+      unanalyzedInfo.length,
+      'App(s) not yet analyzed',
+      unanalyzedInfo,
+      'Apps not yet analyzed',
+      'unanalyzed',
+      infos,
+      trackers
+    ));
   }
+
+  zDiv.appendChild(createStatFactHtml(
+    zeroTrackerInfo.length,
+    'App(s) with no trackers',
+    zeroTrackerInfo,
+    'Apps with no trackers',
+    'zero',
+    infos,
+    trackers
+  ));
 
   var avTrackers = analyzedInfo.map(function(info) {
     return info.trackers.length;
   }).reduce(function(a, b) {
     return a + b;
-  }, 0) / analyzedInfo.length;
+  }, 0) / (analyzedInfo.length || 1);
 
-  if (avTrackers) {
-    zDiv.appendChild(createStatFactHtml(avTrackers.toFixed(1), 'average trackers per App.'));
+  if (analyzedInfo.length > 0) {
+    zDiv.appendChild(createStatFactHtml(
+      avTrackers.toFixed(1),
+      'Average trackers per App',
+      [],
+      '',
+      '',
+      infos,
+      trackers
+    ));
   }
-
-  var withZero = analyzedInfo.filter(function(info) {
-    return info.trackers.length === 0;
-  }).length;
-  zDiv.appendChild(createStatFactHtml(withZero, 'App(s) with no trackers.'));
 
   var stats = {};
   for (var i = 0; i < analyzedInfo.length; i++) {
@@ -265,9 +302,86 @@ function domCreateElement(name, className, textContent) {
   return el;
 }
 
-function createStatFactHtml(number, text) {
-  var p = document.createElement('p');
-  p.className = 'statLine';
+function setCurrentPanelTitle(title) {
+  var titleEl = document.querySelector('.panel-main .panel-head h2');
+  if (titleEl) {
+    titleEl.textContent = title;
+  }
+}
+
+function removeCategoryBackButton() {
+  var existingButton = document.querySelector('.panel-main .panel-head .categoryBack');
+  if (existingButton) {
+    existingButton.remove();
+  }
+}
+
+function renderAppCategory(title, items, mode, allInfos, trackers) {
+  var zDiv = document.getElementById('currentInfo');
+  zDiv.innerHTML = '';
+  setCurrentPanelTitle(title);
+  removeCategoryBackButton();
+
+  var backButton = document.createElement('button');
+  backButton.type = 'button';
+  backButton.className = 'categoryBack';
+  backButton.textContent = '←';
+  backButton.setAttribute('aria-label', 'Back');
+  backButton.title = 'Back';
+  backButton.addEventListener('click', function() {
+    removeCategoryBackButton();
+    setCurrentPanelTitle('Current page');
+    createStatInfos(allInfos, trackers);
+  });
+  document.querySelector('.panel-main .panel-head').prepend(backButton);
+
+  var sortedItems = items.slice();
+  sortedItems.sort(function(a, b) {
+    if (mode === 'trackers-desc') {
+      var trackerDifference = b.trackers.length - a.trackers.length;
+      if (trackerDifference !== 0) {
+        return trackerDifference;
+      }
+    }
+    return a.id.localeCompare(b.id);
+  });
+
+  var list = document.createElement('ul');
+  list.className = 'appCategoryList';
+  for (var i = 0; i < sortedItems.length; i++) {
+    var info = sortedItems[i];
+    var item = document.createElement('li');
+
+    var link = document.createElement('a');
+    link.className = 'appCategoryLink';
+    link.href = 'https://play.google.com/store/apps/details?id=' + encodeURIComponent(info.id);
+    link.target = '_blank';
+    link.textContent = info.id;
+    item.appendChild(link);
+
+    var meta = document.createElement('span');
+    meta.className = 'appCategoryMeta';
+    if (mode === 'unanalyzed') {
+      meta.textContent = 'No analysis';
+    } else {
+      var trackerCount = info.trackers.length;
+      meta.textContent = trackerCount + (trackerCount === 1 ? ' tracker' : ' trackers');
+    }
+    item.appendChild(meta);
+    list.appendChild(item);
+  }
+  zDiv.appendChild(list);
+}
+
+function createStatFactHtml(number, text, items, title, mode, allInfos, trackers) {
+  var p = document.createElement(items.length > 0 ? 'button' : 'p');
+  p.className = items.length > 0 ? 'statLine statLineButton' : 'statLine';
+  if (items.length > 0) {
+    p.type = 'button';
+    p.addEventListener('click', function() {
+      renderAppCategory(title, items, mode, allInfos, trackers);
+    });
+  }
 
   var spanL = document.createElement('span');
   spanL.textContent = '' + number;

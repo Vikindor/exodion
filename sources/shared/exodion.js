@@ -198,13 +198,11 @@ function buildCurrentPageStatInfos() {
     }
 
     byAppID[alternative.id] = true;
-
     var cached = $ep.getCachedReport(alternative.id);
     if (cached) {
       infos.push({
         id: cached.appID,
-        trackers: cached.report ? cached.report.trackers : null,
-        name: cached.name || ''
+        trackers: cached.report ? cached.report.trackers : null
       });
       continue;
     }
@@ -216,8 +214,7 @@ function buildCurrentPageStatInfos() {
 
     infos.push({
       id: alternative.id,
-      trackers: trackers ? JSON.parse(trackers) : null,
-      name: quickBadge ? quickBadge.getAttribute('data-ep-name') : ''
+      trackers: trackers ? JSON.parse(trackers) : null
     });
   }
 
