@@ -1,11 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Exodion",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "description": "Shows Exodus Privacy tracker numbers for Android apps on Google Play",
   "icons": {
-    "32": "icons/exodion-32.png",
-    "48": "icons/exodion-48.png"
+    "16": "icons/icon_16.png",
+    "32": "icons/icon_32.png",
+    "48": "icons/icon_48.png",
+    "128": "icons/icon_128.png"
   },
   "permissions": [
     "activeTab",
@@ -50,8 +52,10 @@
   "action": {
     "default_title": "Exodion",
     "default_icon": {
-      "32": "icons/exodion-32.png",
-      "48": "icons/exodion-48.png"
+      "16": "icons/icon_16.png",
+      "32": "icons/icon_32.png",
+      "48": "icons/icon_48.png",
+      "128": "icons/icon_128.png"
     },
     "default_popup": "popup/exodion_pop.html"
   },
