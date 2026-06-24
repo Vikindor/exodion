@@ -55,6 +55,50 @@ a:active {
   gap: 12px;
 }
 
+.brand-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.popup-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.popup-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(13, 143, 104, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--accent-strong);
+  cursor: pointer;
+}
+
+.popup-icon-button:hover {
+  background: var(--accent-soft);
+}
+
+.popup-icon-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.popup-icon-button svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
 .eyebrow {
   margin: 0 0 4px;
   color: var(--accent-strong);
@@ -277,7 +321,8 @@ ul li {
 
 .statLineButton:focus-visible,
 .categoryBack:focus-visible,
-.appCategoryLink:focus-visible {
+.appCategoryLink:focus-visible,
+.popup-icon-button:focus-visible {
   outline: 2px solid rgba(13, 143, 104, 0.28);
   outline-offset: 1px;
 }
@@ -349,6 +394,12 @@ ul li {
   font-size: 11px;
   line-height: 1.35;
   white-space: nowrap;
+}
+
+.appCategoryList li.appCategoryEmpty {
+  justify-content: flex-start;
+  color: var(--text-muted);
+  font-weight: 600;
 }
 
 ul li.p0 { background: linear-gradient(to right, rgba(242, 174, 67, 0.16) 0%, #f5f8f7 10%); }

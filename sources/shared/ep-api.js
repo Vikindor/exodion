@@ -175,6 +175,15 @@ $ep.removeCachedReport = function(appID) {
   return $ep.persistReportCache();
 };
 
+$ep.clearReportCache = function() {
+  $ep.reportCache = {};
+  $ep.cacheLoaded = true;
+  $ep.cacheLoadPromise = null;
+  return browser.storage.local.remove($ep.getCacheStorageKey()).catch(function(err) {
+    $ep.error('cache:clear-failed', { error: '' + err });
+  });
+};
+
 $ep.fetchLatestReportFor = function(appID, success, error, meta) {
   if (!$ep.isBackgroundContext()) {
     $ep.log('fetchLatestReportFor:proxy', { appID: appID });

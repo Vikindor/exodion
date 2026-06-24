@@ -221,6 +221,26 @@ function buildCurrentPageStatInfos() {
   return infos;
 }
 
+function countScannedCurrentPageApps() {
+  var infos = buildCurrentPageStatInfos();
+  var count = 0;
+
+  for (var i = 0; i < infos.length; i++) {
+    if (Array.isArray(infos[i].trackers)) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+function updateListingActionBadge() {
+  browser.runtime.sendMessage({
+    nb: countScannedCurrentPageApps(),
+    type: 't4'
+  });
+}
+
 function extractAppIDFromHref(href) {
   if (!href) {
     return null;
@@ -552,6 +572,7 @@ function appExodion() {
         cached.name,
         cached.report
       );
+      updateListingActionBadge();
       continue;
     }
 
@@ -583,7 +604,7 @@ function appExodion() {
         }
 
         renderQuickBadge(meta, id, name, report);
-        browser.runtime.sendMessage({ nb: document.querySelectorAll('.exodion-quickbox').length, type: 't4' });
+        updateListingActionBadge();
         scheduleAppExodion(0);
       },
       function() {
@@ -888,6 +909,24 @@ browser.runtime.onMessage.addListener(function(message) {
   if (message.type === 't3') {
     return new Promise(function(resolve) {
       resolve(buildCurrentPageStatInfos());
+    });
+  }
+
+  if (message.type === 'exodion_rescan_current_page') {
+    if ($ep.isPlayAppDetailsPage(window.location.href)) {
+      exodion(true);
+    } else if ($ep.isPlayListingPage(window.location.href)) {
+      window._exodion.inFlight = {};
+      window._exodion.activeBadgeFetches = 0;
+      scheduleAppExodion(0);
+      scheduleAppExodionFollowUp(900);
+    }
+    return Promise.resolve({ ok: true });
+  }
+
+  if (message.type === 'exodion_clear_report_cache') {
+    return $ep.clearReportCache().then(function() {
+      return { ok: true };
     });
   }
 });
