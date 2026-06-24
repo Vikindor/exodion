@@ -16,8 +16,10 @@ Exodion is a modern continuation of the original Exodify idea, updated for curre
 - Shows `Unknown` when Exodus Privacy has no available report for an app yet.
 - Shows the extension badge count as the number of apps on the current page with an available analysis result.
 
+
 <img src="media/gp_apps.png" width="100%" alt="Apps listing screenshot" title="Apps listing"/>
 <img src="media/gp_kids.png" width="100%" alt="Kids apps listing screenshot" title="Kids apps listing"/>
+
 
 ### Google Play app pages
 
@@ -36,8 +38,10 @@ Exodion is a modern continuation of the original Exodify idea, updated for curre
 - Links app IDs in category views back to their Google Play pages.
 - Provides quick actions to clear the Exodion cache or rescan the current page.
 
-<img src="media/popup_apps_list.png" width="49%" alt="Popup screenshot" title="Popup"/>
-<img src="media/popup_app_details.png" width="49%" alt="Popup screenshot" title="Popup"/>
+<p align="center">
+  <img src="media/popup_apps_list.png" width="49%" alt="Popup screenshot" title="Popup"/>
+  <img src="media/popup_app_details.png" width="49%" alt="Popup screenshot" title="Popup"/>
+</p>
 
 ## 🧠 Caching
 
