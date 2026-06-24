@@ -124,7 +124,8 @@ function buildBrowser(browserName, config, options) {
   copyDir(sharedDir, outputDir);
   copyDir(browserSourceDir, outputDir);
   replaceInFiles(outputDir, [
-    ['@@API_TOKEN', config.apiToken]
+    ['@@API_TOKEN', config.apiToken],
+    ['const DEBUG = false;', `const DEBUG = ${options.debug ? 'true' : 'false'};`]
   ]);
 
   console.log(`Built ${browserName} extension at ${outputDir}`);

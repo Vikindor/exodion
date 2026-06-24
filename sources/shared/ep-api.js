@@ -51,8 +51,11 @@ $ep.isSupportedPlayPage = function(url) {
 
 $ep.isBackgroundContext = function() {
   try {
+    if (typeof window === 'undefined') {
+      return true;
+    }
+
     if (
-      typeof window !== 'undefined' &&
       window.location &&
       (
         window.location.protocol === 'moz-extension:' ||
@@ -204,6 +207,10 @@ $ep.fetchLatestReportFor = function(appID, success, error, meta) {
     browser.runtime
       .sendMessage({ type: 'ep_fetchLatestReportFor', appID: appID })
       .then(function(response) {
+        if (response && response.error) {
+          throw new Error(response.error);
+        }
+
         $ep.log('fetchLatestReportFor:proxy-success', {
           appID: appID,
           hasReport: !!(response && response.report)
@@ -251,6 +258,10 @@ $ep.fetchTrackerList = function(success, error) {
     browser.runtime
       .sendMessage({ type: 'ep_fetchTrackerList' })
       .then(function(response) {
+        if (response && response.error) {
+          throw new Error(response.error);
+        }
+
         $ep.log('fetchTrackerList:proxy-success', {
           trackerCount: response && response.trackers ? Object.keys(response.trackers).length : 0
         });

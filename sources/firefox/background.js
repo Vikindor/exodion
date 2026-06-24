@@ -1,7 +1,3 @@
-if (typeof importScripts === 'function') {
-  importScripts('browser-polyfill.js', 'ep-api.js');
-}
-
 function fetchLatestReportPromise(appId) {
   return new Promise(function(resolve, reject) {
     $ep.fetchLatestReportFor(
@@ -34,6 +30,10 @@ browser.runtime.onMessage.addListener(function(message, sender) {
 
   if (message.type === 'ep_fetchTrackerList') {
     return fetchTrackerListPromise();
+  }
+
+  if (!sender.tab) {
+    return;
   }
 
   var tabId = sender.tab.id;
