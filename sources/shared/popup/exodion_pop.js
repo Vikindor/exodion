@@ -91,6 +91,15 @@ function renderEmptyState(title, text) {
   container.appendChild(info);
 }
 
+function renderConnectionProblem(status) {
+  renderEmptyState(
+    'Connection problem',
+    'Exodion stopped automatic requests after ' +
+      status.failures +
+      ' failed attempts. Refresh the page or click the rescan button to try again.'
+  );
+}
+
 function renderAppReport(appId, id, name, lastReport, trackers) {
   var zDiv = document.getElementById('currentInfo');
   zDiv.innerHTML = '';
@@ -155,6 +164,16 @@ function getPageAppName(tabId) {
   });
 }
 
+function getPageFetchStatus(tabId) {
+  if (!tabId) {
+    return Promise.resolve(null);
+  }
+
+  return browser.tabs.sendMessage(tabId, { type: 'exodion_get_fetch_status' }).catch(function() {
+    return null;
+  });
+}
+
 function showAppReport(appId, cachedEntry, pageName) {
   var onReportReady = function(id, name, lastReport) {
     if (typeof name === 'undefined' || !lastReport) {
@@ -215,21 +234,34 @@ $ep.loadReportCache().then(function() {
       var query = tab.url.substring(tab.url.indexOf('?'));
       var appId = getParameterByName(query, 'id');
       document.getElementById('currentInfo').innerHTML = '<div class="loader"></div>';
-      getPageAppName(tab.id).then(function(pageName) {
-        showAppReport(appId, $ep.getCachedReport(appId), pageName);
+      getPageFetchStatus(tab.id).then(function(status) {
+        if (status && status.blocked) {
+          renderConnectionProblem(status);
+          return null;
+        }
+
+        return getPageAppName(tab.id).then(function(pageName) {
+          showAppReport(appId, $ep.getCachedReport(appId), pageName);
+        });
       });
     } else if ($ep.isPlayListingPage(tab.url)) {
-      browser.tabs.sendMessage(tab.id, { type: 't3' });
       document.getElementById('currentInfo').innerHTML = '<div class="loader"></div>';
-      $ep.fetchTrackerList(function(trackers) {
-        browser.tabs.sendMessage(tab.id, { type: 't3' }).then(function(infos) {
-          createStatInfos(infos, trackers);
-        }).catch(function() {
+      getPageFetchStatus(tab.id).then(function(status) {
+        if (status && status.blocked) {
+          renderConnectionProblem(status);
+          return;
+        }
+
+        $ep.fetchTrackerList(function(trackers) {
+          browser.tabs.sendMessage(tab.id, { type: 't3' }).then(function(infos) {
+            createStatInfos(infos, trackers);
+          }).catch(function() {
+            removeLoader();
+          });
+        }, function(err) {
           removeLoader();
+          console.log(err);
         });
-      }, function(err) {
-        removeLoader();
-        console.log(err);
       });
     } else {
       renderEmptyState('Google Play page not detected', 'Open an app page, search results, or a store listing on Google Play.');

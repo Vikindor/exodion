@@ -38,7 +38,15 @@ browser.runtime.onMessage.addListener(function(message, sender) {
 
   var tabId = sender.tab.id;
 
-  if (message.type === 't1') {
+  if (message.type === 't5') {
+    if (message.failed) {
+      browser.action.setBadgeBackgroundColor({ color: '#d93025' });
+      browser.action.setBadgeText({ text: '!', tabId: tabId });
+    } else {
+      browser.action.setBadgeBackgroundColor({ color: '#224955' });
+      browser.action.setBadgeText({ text: '', tabId: tabId });
+    }
+  } else if (message.type === 't1') {
     var nb = message.nbTrackers;
     browser.action.setBadgeBackgroundColor({ color: '#224955' });
 

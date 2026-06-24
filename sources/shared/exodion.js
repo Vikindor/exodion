@@ -4,6 +4,9 @@ window._exodion = {
   fetchedAt: {},
   inFlight: {},
   fetchTtlMs: 5 * 60 * 1000,
+  fetchFailureCount: 0,
+  maxConsecutiveFetchFailures: 10,
+  fetchBlocked: false,
   observer: null,
   appExodionTimer: null,
   maxConcurrentBadgeFetches: 6,
@@ -23,6 +26,38 @@ function xerror() {
   if (window.$ep && $ep.error) {
     $ep.error.apply($ep, arguments);
   }
+}
+
+function resetFetchFailures() {
+  window._exodion.fetchFailureCount = 0;
+  window._exodion.fetchBlocked = false;
+  browser.runtime.sendMessage({ type: 't5', failed: false });
+}
+
+function recordFetchSuccess() {
+  if (window._exodion.fetchFailureCount === 0 && !window._exodion.fetchBlocked) {
+    return;
+  }
+
+  resetFetchFailures();
+}
+
+function recordFetchFailure() {
+  window._exodion.fetchFailureCount += 1;
+
+  if (window._exodion.fetchFailureCount < window._exodion.maxConsecutiveFetchFailures) {
+    return false;
+  }
+
+  window._exodion.fetchBlocked = true;
+  window._exodion.inFlight = {};
+  window._exodion.activeBadgeFetches = 0;
+  browser.runtime.sendMessage({
+    type: 't5',
+    failed: true,
+    failures: window._exodion.fetchFailureCount
+  });
+  return true;
 }
 
 function getParameterByName(name) {
@@ -555,7 +590,11 @@ function getQuickBadgeMountElem(meta) {
 
 function appExodion() {
   xlog('appExodion:start', { url: window.location.href, enabled: window._exodion.shouldAppExodion });
-  if (!window._exodion.shouldAppExodion || !$ep.isSupportedPlayPage(window.location.href)) {
+  if (
+    !window._exodion.shouldAppExodion ||
+    window._exodion.fetchBlocked ||
+    !$ep.isSupportedPlayPage(window.location.href)
+  ) {
     return;
   }
 
@@ -605,6 +644,7 @@ function appExodion() {
         window._exodion.inFlight[id] = false;
         window._exodion.activeBadgeFetches = Math.max(0, window._exodion.activeBadgeFetches - 1);
         window._exodion.fetchedAt[id] = Date.now();
+        recordFetchSuccess();
         $ep.putCachedReport(id, name, report);
         xlog('appExodion:repSuccess', { id: id, trackers: report ? report.trackers.length : -1 });
 
@@ -621,6 +661,13 @@ function appExodion() {
         window._exodion.inFlight[alternative.id] = false;
         window._exodion.activeBadgeFetches = Math.max(0, window._exodion.activeBadgeFetches - 1);
         xerror('appExodion:fetch-failed', { id: alternative.id });
+        if (recordFetchFailure()) {
+          xerror('appExodion:fetch-blocked', {
+            failures: window._exodion.fetchFailureCount,
+            limit: window._exodion.maxConsecutiveFetchFailures
+          });
+          return;
+        }
         scheduleAppExodion(1000);
       },
       { el: alternative.el, anchor: alternative.anchor }
@@ -759,6 +806,12 @@ function exodion(forceRefresh) {
     return;
   }
 
+  if (forceRefresh) {
+    resetFetchFailures();
+  } else if (window._exodion.fetchBlocked) {
+    return;
+  }
+
   var appID = getParameterByName('id');
   xlog('exodion:appID', { appID: appID });
   if (!appID || window._exodion.inFlight[appID]) {
@@ -819,6 +872,7 @@ function exodion(forceRefresh) {
     function(id, name, report) {
       window._exodion.inFlight[id] = false;
       window._exodion.fetchedAt[id] = Date.now();
+      recordFetchSuccess();
       $ep.putCachedReport(id, name, report);
       var nb = report ? report.trackers.length : -1;
       xlog('exodion:fetch-success', { id: id, trackers: nb, reportId: report ? report.id : null });
@@ -854,16 +908,18 @@ function exodion(forceRefresh) {
         }
 
         window._exodion.inFlight[alternative.id] = true;
-        $ep.fetchLatestReportFor(
+          $ep.fetchLatestReportFor(
           alternative.id,
           function(altId, altName, altReport, meta) {
             window._exodion.inFlight[altId] = false;
             window._exodion.fetchedAt[altId] = Date.now();
+            recordFetchSuccess();
             $ep.putCachedReport(altId, altName, altReport);
             renderQuickBadge(meta, altId, altName, altReport);
           },
           function() {
             window._exodion.inFlight[alternative.id] = false;
+            recordFetchFailure();
           },
           { el: alternative.el, anchor: alternative.anchor }
         );
@@ -873,6 +929,7 @@ function exodion(forceRefresh) {
       window._exodion.inFlight[appID] = false;
       replaceMainExodionBox(appID, createFetchErrorElement(appID));
       xerror('exodion:main-fetch-failed', { appID: appID });
+      recordFetchFailure();
     }
   );
 }
@@ -900,6 +957,7 @@ setInterval(function() {
   if (window._exodion.lastQ !== window.location.href) {
     browser.runtime.sendMessage({ nb: 0, type: 't4' });
     window._exodion.lastQ = window.location.href;
+    resetFetchFailures();
     exodion();
     appExodion();
     startAppExodionObserver();
@@ -927,6 +985,7 @@ browser.runtime.onMessage.addListener(function(message) {
   }
 
   if (message.type === 'exodion_rescan_current_page') {
+    resetFetchFailures();
     if ($ep.isPlayAppDetailsPage(window.location.href)) {
       exodion(true);
     } else if ($ep.isPlayListingPage(window.location.href)) {
@@ -936,6 +995,14 @@ browser.runtime.onMessage.addListener(function(message) {
       scheduleAppExodionFollowUp(900);
     }
     return Promise.resolve({ ok: true });
+  }
+
+  if (message.type === 'exodion_get_fetch_status') {
+    return Promise.resolve({
+      blocked: window._exodion.fetchBlocked,
+      failures: window._exodion.fetchFailureCount,
+      limit: window._exodion.maxConsecutiveFetchFailures
+    });
   }
 
   if (message.type === 'exodion_clear_report_cache') {

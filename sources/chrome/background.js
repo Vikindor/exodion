@@ -80,6 +80,22 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
     return sendAsyncResponse(fetchTrackerListPromise(), sendResponse);
   }
 
+  if (message.type === 't5') {
+    if (!sender.tab) {
+      return false;
+    }
+
+    var errorTabId = sender.tab.id;
+    if (message.failed) {
+      chrome.action.setBadgeBackgroundColor({ color: '#d93025' });
+      chrome.action.setBadgeText({ text: '!', tabId: errorTabId });
+    } else {
+      chrome.action.setBadgeBackgroundColor({ color: '#224955' });
+      chrome.action.setBadgeText({ text: '', tabId: errorTabId });
+    }
+    return false;
+  }
+
   if (message.type === 't1') {
     if (!sender.tab) {
       return false;
