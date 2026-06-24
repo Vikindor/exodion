@@ -34,6 +34,7 @@ $ep.isPlayListingPage = function(url) {
     (
       url.indexOf('://play.google.com/store/apps') !== -1 ||
       url.indexOf('://play.google.com/store/games') !== -1 ||
+      url.indexOf('://play.google.com/store/search') !== -1 ||
       url.indexOf('://play.google.com/wishlist') !== -1
     ) &&
     !$ep.isPlayAppDetailsPage(url)
