@@ -5,9 +5,13 @@ const authToken = "@@API_TOKEN";
 $ep.debug = DEBUG;
 $ep.knownCacheTtlMs = 7 * 24 * 60 * 60 * 1000;
 $ep.unknownCacheTtlMs = 6 * 60 * 60 * 1000;
+$ep.trackerListCacheTtlMs = 30 * 24 * 60 * 60 * 1000;
 $ep.reportCache = {};
 $ep.cacheLoaded = false;
 $ep.cacheLoadPromise = null;
+$ep.trackerListCache = null;
+$ep.trackerListCacheLoaded = false;
+$ep.trackerListCacheLoadPromise = null;
 
 $ep.log = function() {
   if (!$ep.debug) {
@@ -108,6 +112,10 @@ $ep.getCacheStorageKey = function() {
   return 'exodionReportCacheV1';
 };
 
+$ep.getTrackerListCacheStorageKey = function() {
+  return 'exodionTrackerListCacheV1';
+};
+
 $ep.getCacheTTL = function(report) {
   return report ? $ep.knownCacheTtlMs : $ep.unknownCacheTtlMs;
 };
@@ -179,7 +187,13 @@ $ep.clearReportCache = function() {
   $ep.reportCache = {};
   $ep.cacheLoaded = true;
   $ep.cacheLoadPromise = null;
-  return browser.storage.local.remove($ep.getCacheStorageKey()).catch(function(err) {
+  $ep.trackerListCache = null;
+  $ep.trackerListCacheLoaded = true;
+  $ep.trackerListCacheLoadPromise = null;
+  return browser.storage.local.remove([
+    $ep.getCacheStorageKey(),
+    $ep.getTrackerListCacheStorageKey()
+  ]).catch(function(err) {
     $ep.error('cache:clear-failed', { error: '' + err });
   });
 };
@@ -251,23 +265,95 @@ $ep.fetchTrackerList = function(success, error) {
     return;
   }
 
-  $ep.fetchJson(
-    'https://reports.exodus-privacy.eu.org/api/trackers',
-    function(json) {
-      try {
-        if (json.trackers) {
-          success(json.trackers);
-        } else if (error) {
-          error('no trackers');
+  $ep.loadTrackerListCache().then(function(cache) {
+    if ($ep.isFreshTrackerListCache(cache)) {
+      success(cache.trackers);
+      return;
+    }
+
+    $ep.fetchJson(
+      'https://reports.exodus-privacy.eu.org/api/trackers',
+      function(json) {
+        try {
+          if (json.trackers) {
+            $ep.putCachedTrackerList(json.trackers);
+            success(json.trackers);
+          } else if (cache && cache.trackers) {
+            success(cache.trackers);
+          } else if (error) {
+            error('no trackers');
+          }
+        } catch (e) {
+          if (cache && cache.trackers) {
+            success(cache.trackers);
+          } else if (error) {
+            error(e);
+          }
         }
-      } catch (e) {
-        if (error) {
-          error(e);
+      },
+      function(err) {
+        if (cache && cache.trackers) {
+          success(cache.trackers);
+        } else if (error) {
+          error(err);
         }
       }
-    },
-    error
+    );
+  }).catch(function(err) {
+    if (error) {
+      error(err);
+    }
+  });
+};
+
+$ep.loadTrackerListCache = function() {
+  if ($ep.trackerListCacheLoaded) {
+    return Promise.resolve($ep.trackerListCache);
+  }
+
+  if ($ep.trackerListCacheLoadPromise) {
+    return $ep.trackerListCacheLoadPromise;
+  }
+
+  $ep.trackerListCacheLoadPromise = browser.storage.local
+    .get($ep.getTrackerListCacheStorageKey())
+    .then(function(data) {
+      var cache = data[$ep.getTrackerListCacheStorageKey()];
+      $ep.trackerListCache = cache && cache.trackers ? cache : null;
+      $ep.trackerListCacheLoaded = true;
+      return $ep.trackerListCache;
+    })
+    .catch(function(err) {
+      $ep.error('tracker-list-cache:load-failed', { error: '' + err });
+      $ep.trackerListCache = null;
+      $ep.trackerListCacheLoaded = true;
+      return null;
+    });
+
+  return $ep.trackerListCacheLoadPromise;
+};
+
+$ep.isFreshTrackerListCache = function(cache) {
+  return !!(
+    cache &&
+    cache.trackers &&
+    cache.cachedAt &&
+    Date.now() - cache.cachedAt < $ep.trackerListCacheTtlMs
   );
+};
+
+$ep.putCachedTrackerList = function(trackers) {
+  $ep.trackerListCache = {
+    trackers: trackers,
+    cachedAt: Date.now()
+  };
+  $ep.trackerListCacheLoaded = true;
+
+  var payload = {};
+  payload[$ep.getTrackerListCacheStorageKey()] = $ep.trackerListCache;
+  return browser.storage.local.set(payload).catch(function(err) {
+    $ep.error('tracker-list-cache:save-failed', { error: '' + err });
+  });
 };
 
 function getLatestReport(reports) {

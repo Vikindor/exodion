@@ -94,6 +94,7 @@ function renderEmptyState(title, text) {
 function renderAppReport(appId, id, name, lastReport, trackers) {
   var zDiv = document.getElementById('currentInfo');
   zDiv.innerHTML = '';
+  trackers = trackers || {};
 
   var infoP = document.createElement('p');
   var titleSpan = document.createElement('span');
@@ -122,18 +123,13 @@ function renderAppReport(appId, id, name, lastReport, trackers) {
   ul.className = 'trackerList';
   for (var i = 0; i < lastReport.trackers.length; i++) {
     var tracker = lastReport.trackers[i];
-    try {
-      ul.appendChild(
-        domCreateTrackerLi(
-          trackers['' + tracker].name,
-          'https://reports.exodus-privacy.eu.org/trackers/' + tracker + '/'
-        )
-      );
-    } catch (e) {
-      var li = document.createElement('li');
-      li.textContent = trackers['' + tracker].name;
-      ul.appendChild(li);
-    }
+    var trackerInfo = trackers['' + tracker];
+    ul.appendChild(
+      domCreateTrackerLi(
+        trackerInfo && trackerInfo.name ? trackerInfo.name : 'Tracker #' + tracker,
+        'https://reports.exodus-privacy.eu.org/trackers/' + tracker + '/'
+      )
+    );
   }
   zDiv.appendChild(ul);
 
@@ -147,7 +143,19 @@ function renderAppReport(appId, id, name, lastReport, trackers) {
   zDiv.appendChild(document.createElement('hr'));
 }
 
-function showAppReport(appId, cachedEntry) {
+function getPageAppName(tabId) {
+  if (!tabId) {
+    return Promise.resolve(null);
+  }
+
+  return browser.tabs.sendMessage(tabId, { type: 'exodion_get_page_app_name' }).then(function(response) {
+    return response && response.name ? response.name : null;
+  }).catch(function() {
+    return null;
+  });
+}
+
+function showAppReport(appId, cachedEntry, pageName) {
   var onReportReady = function(id, name, lastReport) {
     if (typeof name === 'undefined' || !lastReport) {
       removeLoader();
@@ -155,12 +163,18 @@ function showAppReport(appId, cachedEntry) {
       return;
     }
 
+    if (lastReport.trackers.length === 0) {
+      removeLoader();
+      renderAppReport(appId, id, pageName || name, lastReport, {});
+      return;
+    }
+
     $ep.fetchTrackerList(function(trackers) {
       removeLoader();
-      renderAppReport(appId, id, name, lastReport, trackers);
+      renderAppReport(appId, id, pageName || name, lastReport, trackers);
     }, function(err) {
       removeLoader();
-      renderEmptyState('Tracker list unavailable', 'The report loaded, but the tracker directory could not be fetched right now.');
+      renderAppReport(appId, id, pageName || name, lastReport, {});
       console.log(err);
     });
   };
@@ -201,7 +215,9 @@ $ep.loadReportCache().then(function() {
       var query = tab.url.substring(tab.url.indexOf('?'));
       var appId = getParameterByName(query, 'id');
       document.getElementById('currentInfo').innerHTML = '<div class="loader"></div>';
-      showAppReport(appId, $ep.getCachedReport(appId));
+      getPageAppName(tab.id).then(function(pageName) {
+        showAppReport(appId, $ep.getCachedReport(appId), pageName);
+      });
     } else if ($ep.isPlayListingPage(tab.url)) {
       browser.tabs.sendMessage(tab.id, { type: 't3' });
       document.getElementById('currentInfo').innerHTML = '<div class="loader"></div>';

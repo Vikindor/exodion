@@ -221,6 +221,16 @@ function buildCurrentPageStatInfos() {
   return infos;
 }
 
+function getCurrentPageAppName() {
+  var nameEl = document.querySelector('[itemprop="name"]');
+  if (!nameEl) {
+    return null;
+  }
+
+  var name = nameEl.textContent ? nameEl.textContent.trim() : '';
+  return name || null;
+}
+
 function countScannedCurrentPageApps() {
   var infos = buildCurrentPageStatInfos();
   var count = 0;
@@ -910,6 +920,10 @@ browser.runtime.onMessage.addListener(function(message) {
     return new Promise(function(resolve) {
       resolve(buildCurrentPageStatInfos());
     });
+  }
+
+  if (message.type === 'exodion_get_page_app_name') {
+    return Promise.resolve({ name: getCurrentPageAppName() });
   }
 
   if (message.type === 'exodion_rescan_current_page') {
