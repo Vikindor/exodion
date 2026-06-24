@@ -83,12 +83,24 @@ function removeLoader() {
 
 function renderEmptyState(title, text) {
   var container = document.getElementById('currentInfo');
-  container.innerHTML = '';
+  container.textContent = '';
 
   var info = document.createElement('p');
   info.className = 'trackerListTop';
-  info.innerHTML = '<strong>' + title + '</strong><br>' + text;
+  var titleEl = document.createElement('strong');
+  titleEl.textContent = title;
+  info.appendChild(titleEl);
+  info.appendChild(document.createElement('br'));
+  info.appendChild(document.createTextNode(text));
   container.appendChild(info);
+}
+
+function showCurrentLoader() {
+  var container = document.getElementById('currentInfo');
+  container.textContent = '';
+  var loader = document.createElement('div');
+  loader.className = 'loader';
+  container.appendChild(loader);
 }
 
 function renderConnectionProblem(status) {
@@ -100,9 +112,28 @@ function renderConnectionProblem(status) {
   );
 }
 
+function getTrackerCountTone(count) {
+  if (count === 0) {
+    return 'clean';
+  }
+
+  if (count < 3) {
+    return 'mid';
+  }
+
+  return 'high';
+}
+
+function appendTrackerCountText(container, count, text) {
+  var countSpan = document.createElement('span');
+  countSpan.className = 'trackerCountText ' + getTrackerCountTone(count);
+  countSpan.textContent = text;
+  container.appendChild(countSpan);
+}
+
 function renderAppReport(appId, id, name, lastReport, trackers) {
   var zDiv = document.getElementById('currentInfo');
-  zDiv.innerHTML = '';
+  zDiv.textContent = '';
   trackers = trackers || {};
 
   var infoP = document.createElement('p');
@@ -120,11 +151,17 @@ function renderAppReport(appId, id, name, lastReport, trackers) {
   var trackerHead = document.createElement('p');
   trackerHead.className = 'trackerListTop';
   if (lastReport.trackers.length === 0) {
-    trackerHead.textContent = 'The Exodus Privacy analysis did not found the code signature of any known trackers in this application.';
+    trackerHead.appendChild(document.createTextNode('The Exodus Privacy analysis did not found the code signature of '));
+    appendTrackerCountText(trackerHead, 0, 'any known trackers');
+    trackerHead.appendChild(document.createTextNode(' in this application.'));
   } else if (lastReport.trackers.length === 1) {
-    trackerHead.textContent = 'The Exodus Privacy analysis did found code signature of 1 tracker in this application.';
+    trackerHead.appendChild(document.createTextNode('The Exodus Privacy analysis did found code signature of '));
+    appendTrackerCountText(trackerHead, 1, '1 tracker');
+    trackerHead.appendChild(document.createTextNode(' in this application.'));
   } else {
-    trackerHead.textContent = 'The Exodus Privacy analysis did found code signature of ' + lastReport.trackers.length + ' trackers in this application.';
+    trackerHead.appendChild(document.createTextNode('The Exodus Privacy analysis did found code signature of '));
+    appendTrackerCountText(trackerHead, lastReport.trackers.length, lastReport.trackers.length + ' trackers');
+    trackerHead.appendChild(document.createTextNode(' in this application.'));
   }
   zDiv.appendChild(trackerHead);
 
@@ -223,7 +260,7 @@ setupHeaderActions();
 $ep.loadReportCache().then(function() {
   return getActiveWindowTabs();
 }).then(function(tabs) {
-  document.getElementById('currentInfo').innerHTML = '';
+  document.getElementById('currentInfo').textContent = '';
   if (!tabs.length) {
     renderEmptyState('No active tab', 'Open Google Play in the current window to inspect apps and trackers.');
     return;
@@ -233,7 +270,7 @@ $ep.loadReportCache().then(function() {
     if ($ep.isPlayAppDetailsPage(tab.url)) {
       var query = tab.url.substring(tab.url.indexOf('?'));
       var appId = getParameterByName(query, 'id');
-      document.getElementById('currentInfo').innerHTML = '<div class="loader"></div>';
+      showCurrentLoader();
       getPageFetchStatus(tab.id).then(function(status) {
         if (status && status.blocked) {
           renderConnectionProblem(status);
@@ -245,7 +282,7 @@ $ep.loadReportCache().then(function() {
         });
       });
     } else if ($ep.isPlayListingPage(tab.url)) {
-      document.getElementById('currentInfo').innerHTML = '<div class="loader"></div>';
+      showCurrentLoader();
       getPageFetchStatus(tab.id).then(function(status) {
         if (status && status.blocked) {
           renderConnectionProblem(status);
@@ -271,7 +308,7 @@ $ep.loadReportCache().then(function() {
 
 function createStatInfos(infos, trackers) {
   var zDiv = document.getElementById('currentInfo');
-  zDiv.innerHTML = '';
+  zDiv.textContent = '';
   setCurrentPanelTitle('Current page');
   if (infos.length === 0) {
     return;
@@ -428,7 +465,7 @@ function removeCategoryBackButton() {
 
 function renderAppCategory(title, items, mode, allInfos, trackers) {
   var zDiv = document.getElementById('currentInfo');
-  zDiv.innerHTML = '';
+  zDiv.textContent = '';
   setCurrentPanelTitle(title);
   removeCategoryBackButton();
 
@@ -485,6 +522,13 @@ function renderAppCategory(title, items, mode, allInfos, trackers) {
     } else {
       var trackerCount = info.trackers.length;
       meta.textContent = trackerCount + (trackerCount === 1 ? ' tracker' : ' trackers');
+      if (trackerCount === 0) {
+        meta.className += ' clean';
+      } else if (trackerCount < 3) {
+        meta.className += ' mid';
+      } else {
+        meta.className += ' high';
+      }
     }
     item.appendChild(meta);
     list.appendChild(item);

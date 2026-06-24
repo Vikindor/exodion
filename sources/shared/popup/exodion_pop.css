@@ -202,6 +202,22 @@ a:active {
   line-height: 1.45;
 }
 
+.trackerCountText {
+  font-weight: 800;
+}
+
+.trackerCountText.clean {
+  color: #188038;
+}
+
+.trackerCountText.mid {
+  color: #9c6b00;
+}
+
+.trackerCountText.high {
+  color: #d93025;
+}
+
 ul {
   margin: 0 0 12px;
   padding: 0;
@@ -392,8 +408,21 @@ ul li {
   flex: 0 0 auto;
   color: var(--text-muted);
   font-size: 11px;
+  font-weight: 700;
   line-height: 1.35;
   white-space: nowrap;
+}
+
+.appCategoryMeta.clean {
+  color: #188038;
+}
+
+.appCategoryMeta.mid {
+  color: #9c6b00;
+}
+
+.appCategoryMeta.high {
+  color: #d93025;
 }
 
 .appCategoryList li.appCategoryEmpty {
