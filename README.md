@@ -43,7 +43,7 @@ Exodion is a modern continuation of the original Exodify idea, updated for curre
   <img src="media/popup_app_details.png" width="49%" alt="Popup screenshot" title="Popup"/>
 </p>
 
-## 🧠 Caching
+### Caching
 
 Exodion keeps a local browser cache to reduce repeated Exodus Privacy requests and to stay useful when the Exodus Privacy API is temporarily unavailable.
 
@@ -57,7 +57,11 @@ Exodion keeps a local browser cache to reduce repeated Exodus Privacy requests a
 
 ### Option 1: Install from the store
 
-Store links will be added after publication.
+<a href="https://chromewebstore.google.com/detail/exodion/llkcbcamfnflbojngibkechnmfjeapbb" target="_blank" rel="noopener noreferrer">
+  <img src="media/chrome_web_store_badge.png" alt="Chrome Web Store badge" title="Chrome Web Store" />
+</a>
+<br><br>
+Firefox - in progress.
 
 ### Option 2: Load the unpacked extension
 
