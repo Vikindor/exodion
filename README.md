@@ -23,7 +23,7 @@ Exodion is a modern continuation of the original Exodify idea, updated for curre
 
 ### Google Play app pages
 
-- Shows the tracker count next to the main Install action.
+- Shows the tracker count next to the main "Install" action.
 - Links directly to the matching Exodus Privacy report when one exists.
 - Shows a loading state while report data is being fetched.
 - Allows manual refresh for the current app report.
@@ -61,7 +61,9 @@ Exodion keeps a local browser cache to reduce repeated Exodus Privacy requests a
   <img src="media/chrome_web_store_badge.png" alt="Chrome Web Store badge" title="Chrome Web Store" />
 </a>
 <br><br>
-Firefox - in progress.
+<a href="https://addons.mozilla.org/en-US/firefox/addon/exodion/" target="_blank" rel="noopener noreferrer">
+  <img src="media/firefox_store_badge.png" alt="Firefox Add-ons badge" title="Firefox Add-ons" />
+</a>
 
 ### Option 2: Load the unpacked extension
 
