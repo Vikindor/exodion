@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Exodion",
-  "version": "1.27.1",
+  "version": "1.27.2",
   "description": "Shows Exodus Privacy tracker numbers for Android apps on Google Play",
   "icons": {
     "16": "icons/icon_16.png",
@@ -13,10 +13,10 @@
     "storage"
   ],
   "host_permissions": [
-    "*://play.google.com/*",
+    "https://play.google.com/*",
     "https://reports.exodus-privacy.eu.org/api/search/*",
     "https://reports.exodus-privacy.eu.org/api/trackers*",
-    "*://reports.exodus-privacy.eu.org/*/analysis/submit/*"
+    "https://reports.exodus-privacy.eu.org/*/analysis/submit/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -24,7 +24,7 @@
   "content_scripts": [
     {
       "matches": [
-        "*://play.google.com/*"
+        "https://play.google.com/*"
       ],
       "js": [
         "browser-polyfill.js",
@@ -37,7 +37,7 @@
     },
     {
       "matches": [
-        "*://reports.exodus-privacy.eu.org/*/analysis/submit/*"
+        "https://reports.exodus-privacy.eu.org/*/analysis/submit/*"
       ],
       "js": [
         "exodion-sub.js"
